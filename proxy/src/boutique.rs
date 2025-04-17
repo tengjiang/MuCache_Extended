@@ -39,7 +39,7 @@ impl util::Backend for Boutique {
         CATALOG_SIZE.set(self.catalog_size.clone()).unwrap();
         let username = whoami::username();
         let analysis_file =
-            format!("/users/{username}/mucache/experiments/boutique/data/analysis.txt");
+            format!("/users/{username}/MuCache_Extended/experiments/boutique/data/analysis.txt");
         info!("Reading analysis from {}", analysis_file);
         read_analysis_file(&analysis_file);
     }

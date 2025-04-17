@@ -367,12 +367,12 @@ func Invoke_deprecated2[T interface{}](ctx context.Context, app string, method s
 	}
 	req.Header.Set("dapr-app-id", app)
 
-	mucacheOn := ctx.Value("mucache").(string)
+	mucacheOn := ctx.Value("MuCache_Extended").(string)
 	if mucacheOn == "on" {
 		parentRID := ctx.Value("RID").(string)
 		req.Header.Set("parentRID", parentRID)
 	}
-	req.Header.Set("mucache", "on")
+	req.Header.Set("MuCache_Extended", "on")
 
 	resp, err := client.Do(req)
 	if err != nil {

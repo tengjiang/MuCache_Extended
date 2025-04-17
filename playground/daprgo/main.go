@@ -54,7 +54,7 @@ func getset(w http.ResponseWriter, r *http.Request) {
 	// log.Println(reservation)
 	var mucacheOn bool
 
-	_, mucacheOn = r.Header["Mucache"]
+	_, mucacheOn = r.Header["MuCache_Extended"]
 
 	// TODO: Understand what Context does precisely
 	// ctx := context.Background()
@@ -70,7 +70,7 @@ func getset(w http.ResponseWriter, r *http.Request) {
 	req.Header.Add("Dapr-app-id", "statestore")
 
 	if mucacheOn {
-		req.Header.Add("mucache", "on")
+		req.Header.Add("MuCache_Extended", "on")
 		var parentRID = r.Header.Get("RID")
 		req.Header.Add("parentRID", parentRID)
 	}

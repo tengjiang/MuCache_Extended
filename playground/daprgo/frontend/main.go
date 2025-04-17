@@ -47,7 +47,7 @@ func getset(w http.ResponseWriter, r *http.Request) {
 
 	var mucacheOn string
 
-	mucacheOn = r.Header.Get("mucache")
+	mucacheOn = r.Header.Get("MuCache_Extended")
 
 	// TODO: Understand what Context does precisely
 	// ctx := context.Background()
@@ -77,7 +77,7 @@ func getset(w http.ResponseWriter, r *http.Request) {
 		log.Println("Mucache header pass through appHttp")
 	}
 	// Adding the mucache header
-	req.Header.Add("mucache", "on")
+	req.Header.Add("MuCache_Extended", "on")
 
 	// Invoking a service
 	response, err := client.Do(req)

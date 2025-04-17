@@ -34,7 +34,7 @@ impl util::Backend for Hotel {
         FRONTEND_IP.set(self.frontend.clone()).unwrap();
         let username = whoami::username();
         let analysis_file =
-            format!("/users/{username}/mucache/experiments/hotel/data/analysis.txt");
+            format!("/users/{username}/MuCache_Extended/experiments/hotel/data/analysis.txt");
         info!("Reading analysis data from {}", analysis_file);
         read_analysis_file(&analysis_file);
     }

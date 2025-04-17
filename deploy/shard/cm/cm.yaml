@@ -29,7 +29,7 @@ metadata:
   labels:
     app: cm${NODE_IDX}${SHARD_IDX}
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: cm${NODE_IDX}${SHARD_IDX}
@@ -54,7 +54,7 @@ spec:
             - containerPort: 80
             - containerPort: 5550
             - containerPort: 5551
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

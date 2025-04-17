@@ -21,7 +21,7 @@ metadata:
   labels:
     app: singleservice
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: singleservice
@@ -41,7 +41,7 @@ spec:
           image: tauta/singleservice:latest
           ports:
             - containerPort: 3000
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

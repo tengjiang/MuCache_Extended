@@ -22,5 +22,5 @@ done
 for i in $(seq 1 "$nworkers"); do
   NODE_IDX="$i" \
     MEM="$mem" \
-    envsubst <"$setup_path"/cache.yaml | helm install cache"$i" oci://registry-1.docker.io/bitnamicharts/redis -f -
+    envsubst <"$setup_path"/cache.yaml | helm install cache"$i" ./redis-20.12.0.tgz -f -
 done

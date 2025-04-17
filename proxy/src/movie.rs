@@ -39,7 +39,7 @@ impl util::Backend for Movie {
         PAGE_IP.set(self.page.clone()).unwrap();
         let username = whoami::username();
         let analysis_file =
-            format!("/users/{username}/mucache/experiments/movie/data/analysis.txt");
+            format!("/users/{username}/MuCache_Extended/experiments/movie/data/analysis.txt");
         info!("Reading movie analysis data from {}", analysis_file);
         read_analysis_file(&analysis_file);
     }

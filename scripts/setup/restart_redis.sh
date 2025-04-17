@@ -21,7 +21,7 @@ done
 
 for i in $(seq 1 "$nworkers"); do
   sed "s/node-1/node-$i/g" "$setup_path"/redis.yaml >"$setup_path"/redis"$i".yaml
-  helm install redis"$i" bitnami/redis -f "$setup_path"/redis"$i".yaml
+  helm install redis"$i" ./redis-20.12.0.tgz -f "$setup_path"/redis"$i".yaml
   rm "$setup_path"/redis"$i".yaml
 done
 

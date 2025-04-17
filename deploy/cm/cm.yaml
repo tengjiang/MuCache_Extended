@@ -33,7 +33,7 @@ metadata:
   labels:
     app: cm${NODE_IDX}
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: cm${NODE_IDX}
@@ -57,7 +57,7 @@ spec:
             - containerPort: 5550
             - containerPort: 5551
             - containerPort: 9090
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
