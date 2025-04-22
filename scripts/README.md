@@ -49,7 +49,7 @@ node-4   Ready    <none>          167m   v1.26.1
 node-5   Ready    <none>          167m   v1.26.1
 ...
 ```
-Lastly, we want to preload all the helm charts as well, so run
+Lastly, we want to preload all the helm charts as well, so run the following within the controller node (node0)
 ```bash
 helm pull oci://registry-1.docker.io/bitnamicharts/redis --version 20.12.0
 ```
