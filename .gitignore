@@ -7,3 +7,5 @@ scripts/vars.sh
 target
 
 manifest.xml
+
+env.sh
