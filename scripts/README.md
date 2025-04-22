@@ -30,6 +30,7 @@ export node_username=${username_of_cloudlab}
 export private_key=${ssh_key_location}
 python3 scripts/host/upload.py
 python3 scripts/host/setup.py
+python3 scripts/host/preload_images.py
 ```
 
 After it finishes, login into node-0 and you should see the following:
@@ -48,6 +49,10 @@ node-4   Ready    <none>          167m   v1.26.1
 node-5   Ready    <none>          167m   v1.26.1
 ...
 ```
+Lastly, we want to preload all the helm charts as well, so run
+```bash
+helm pull oci://registry-1.docker.io/bitnamicharts/redis --version 20.12.0
+```
 
 ## Run
 ### Build applications
@@ -62,7 +67,7 @@ Alternatively, you can build the images on any x86 machines and push to dockerhu
 ./scripts/cm/build_and_push=${docker_io_username} # cache manager image
 ```
 
-If you're using pre-built images, set on the controller node
+If you're using pre-built images, set on the controller node (for example, node0)
 ```bash
 export docker_io_username=tauta
 ```
