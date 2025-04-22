@@ -23,6 +23,6 @@ var MyName = os.Getenv("APP_NAME_NO_UNDERSCORES")
 var MyRawName = os.Getenv("APP_RAW_NAME_NO_UNDERSCORES")
 
 var HTTPClient = &http.Client{
-	Transport: &http.Transport{MaxConnsPerHost: 200, MaxIdleConnsPerHost: 200, MaxIdleConns: 200},
-	Timeout:   120 * time.Second,
+	Transport: &http.Transport{MaxConnsPerHost: 100, MaxIdleConnsPerHost: 100, MaxIdleConns: 100},
+	Timeout:   60 * time.Second,
 }
