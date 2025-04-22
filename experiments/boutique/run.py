@@ -80,7 +80,6 @@ def run_resource_usage():
 
 def main():
     reqs = [2000, 3000, 4000, 4500, 5000, 5500, 6000]
-    reqs = [5000, 5500, 6000]
     ttl = TTL  ## in ms
     baselines = {}
     uppers = {}
