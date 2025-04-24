@@ -1,0 +1,62 @@
+{
+  "10": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0008 secs\n  Slowest:\t0.1175 secs\n  Fastest:\t0.0022 secs\n  Average:\t0.0120 secs\n  Requests/sec:\t10.0664\n\n  Total data:\t1.46 KiB\n  Size/request:\t5 B\n  Size/sec:\t49 B\n\nResponse time histogram:\n  0.002 [1]   |\n  0.014 [242] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.025 [12]  |\u25a0\n  0.037 [22]  |\u25a0\u25a0\n  0.048 [2]   |\n  0.060 [4]   |\n  0.071 [5]   |\n  0.083 [10]  |\u25a0\n  0.094 [1]   |\n  0.106 [0]   |\n  0.117 [1]   |\n\nResponse time distribution:\n  10.00% in 0.0026 secs\n  25.00% in 0.0027 secs\n  50.00% in 0.0057 secs\n  75.00% in 0.0097 secs\n  90.00% in 0.0305 secs\n  95.00% in 0.0677 secs\n  99.00% in 0.0753 secs\n  99.90% in 0.1175 secs\n  99.99% in 0.1175 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0003 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 300 responses\n\nError distribution:\n  [2] aborted due to deadline",
+    "throughput": 10.0664,
+    "hit_rate": {
+      "service1": "0.97",
+      "service2": "0.99",
+      "service3": "0.98",
+      "service4": "0.97"
+    }
+  },
+  "20": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0016 secs\n  Slowest:\t0.0955 secs\n  Fastest:\t0.0017 secs\n  Average:\t0.0123 secs\n  Requests/sec:\t20.0989\n\n  Total data:\t2.93 KiB\n  Size/request:\t5 B\n  Size/sec:\t99 B\n\nResponse time histogram:\n  0.002 [1]   |\n  0.011 [446] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.020 [59]  |\u25a0\u25a0\u25a0\u25a0\n  0.030 [40]  |\u25a0\u25a0\n  0.039 [6]   |\n  0.049 [8]   |\n  0.058 [3]   |\n  0.067 [5]   |\n  0.077 [18]  |\u25a0\n  0.086 [9]   |\n  0.095 [5]   |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0026 secs\n  50.00% in 0.0057 secs\n  75.00% in 0.0119 secs\n  90.00% in 0.0271 secs\n  95.00% in 0.0687 secs\n  99.00% in 0.0829 secs\n  99.90% in 0.0955 secs\n  99.99% in 0.0955 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0003 secs, 0.0008 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 600 responses\n\nError distribution:\n  [3] aborted due to deadline",
+    "throughput": 20.0989,
+    "hit_rate": {
+      "service1": "1.00",
+      "service2": "0.99",
+      "service3": "0.95",
+      "service4": "0.96"
+    }
+  },
+  "30": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0021 secs\n  Slowest:\t0.0962 secs\n  Fastest:\t0.0021 secs\n  Average:\t0.0112 secs\n  Requests/sec:\t30.0313\n\n  Total data:\t4.39 KiB\n  Size/request:\t5 B\n  Size/sec:\t149 B\n\nResponse time histogram:\n  0.002 [1]   |\n  0.011 [675] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.021 [108] |\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.030 [24]  |\u25a0\n  0.040 [24]  |\u25a0\n  0.049 [14]  |\n  0.059 [23]  |\u25a0\n  0.068 [13]  |\n  0.077 [8]   |\n  0.087 [7]   |\n  0.096 [3]   |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0026 secs\n  50.00% in 0.0057 secs\n  75.00% in 0.0099 secs\n  90.00% in 0.0307 secs\n  95.00% in 0.0514 secs\n  99.00% in 0.0822 secs\n  99.90% in 0.0962 secs\n  99.99% in 0.0962 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0002 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 900 responses\n\nError distribution:\n  [1] aborted due to deadline",
+    "throughput": 30.0313,
+    "hit_rate": {
+      "service1": "1.00",
+      "service2": "0.99",
+      "service3": "0.94",
+      "service4": "0.95"
+    }
+  },
+  "40": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0006 secs\n  Slowest:\t0.0970 secs\n  Fastest:\t0.0020 secs\n  Average:\t0.0115 secs\n  Requests/sec:\t40.0325\n\n  Total data:\t5.86 KiB\n  Size/request:\t5 B\n  Size/sec:\t199 B\n\nResponse time histogram:\n  0.002 [1]   |\n  0.011 [911] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.021 [120] |\u25a0\u25a0\u25a0\u25a0\n  0.031 [54]  |\u25a0\n  0.040 [10]  |\n  0.050 [38]  |\u25a0\n  0.059 [24]  |\n  0.069 [6]   |\n  0.078 [24]  |\n  0.088 [4]   |\n  0.097 [8]   |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0026 secs\n  50.00% in 0.0057 secs\n  75.00% in 0.0097 secs\n  90.00% in 0.0285 secs\n  95.00% in 0.0511 secs\n  99.00% in 0.0797 secs\n  99.90% in 0.0944 secs\n  99.99% in 0.0970 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0002 secs, 0.0006 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0002 secs\n\nStatus code distribution:\n  [200] 1200 responses\n\nError distribution:\n  [1] aborted due to deadline",
+    "throughput": 40.0325,
+    "hit_rate": {
+      "service1": "1.00",
+      "service2": "0.99",
+      "service3": "0.99",
+      "service4": "0.99"
+    }
+  },
+  "50": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0017 secs\n  Slowest:\t0.1341 secs\n  Fastest:\t0.0019 secs\n  Average:\t0.0145 secs\n  Requests/sec:\t50.0638\n\n  Total data:\t7.32 KiB\n  Size/request:\t5 B\n  Size/sec:\t249 B\n\nResponse time histogram:\n  0.002 [1]    |\n  0.015 [1123] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.028 [139]  |\u25a0\u25a0\u25a0\n  0.042 [76]   |\u25a0\u25a0\n  0.055 [28]   |\n  0.068 [61]   |\u25a0\n  0.081 [49]   |\u25a0\n  0.094 [9]    |\n  0.108 [8]    |\n  0.121 [1]    |\n  0.134 [5]    |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0026 secs\n  50.00% in 0.0058 secs\n  75.00% in 0.0152 secs\n  90.00% in 0.0454 secs\n  95.00% in 0.0658 secs\n  99.00% in 0.0941 secs\n  99.90% in 0.1259 secs\n  99.99% in 0.1341 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0002 secs, 0.0009 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 1500 responses\n\nError distribution:\n  [2] aborted due to deadline",
+    "throughput": 50.0638,
+    "hit_rate": {
+      "service1": "0.99",
+      "service2": "0.99",
+      "service3": "0.99",
+      "service4": "0.92"
+    }
+  },
+  "60": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t30.0006 secs\n  Slowest:\t0.1551 secs\n  Fastest:\t0.0018 secs\n  Average:\t0.0149 secs\n  Requests/sec:\t60.0322\n\n  Total data:\t8.79 KiB\n  Size/request:\t5 B\n  Size/sec:\t299 B\n\nResponse time histogram:\n  0.002 [1]    |\n  0.017 [1447] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.032 [97]   |\u25a0\u25a0\n  0.048 [75]   |\u25a0\n  0.063 [70]   |\u25a0\n  0.078 [59]   |\u25a0\n  0.094 [30]   |\n  0.109 [9]    |\n  0.124 [6]    |\n  0.140 [3]    |\n  0.155 [3]    |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0026 secs\n  50.00% in 0.0057 secs\n  75.00% in 0.0129 secs\n  90.00% in 0.0478 secs\n  95.00% in 0.0678 secs\n  99.00% in 0.0983 secs\n  99.90% in 0.1489 secs\n  99.99% in 0.1551 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0004 secs, 0.0002 secs, 0.0006 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 1800 responses\n\nError distribution:\n  [1] aborted due to deadline",
+    "throughput": 60.0322,
+    "hit_rate": {
+      "service1": "0.99",
+      "service2": "1.00",
+      "service3": "0.99",
+      "service4": "0.95"
+    }
+  }
+}
