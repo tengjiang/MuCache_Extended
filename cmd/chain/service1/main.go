@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/loadcm"
@@ -11,10 +12,11 @@ import (
 	"math/rand"
 	"net/http"
 	"runtime"
+	"time"
 )
 
 var Callee = "service2"
-var MaxProcs = 8
+var MaxProcs = 4
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte("Heartbeat\n"))
@@ -34,12 +36,23 @@ func write(ctx context.Context, req *twoserivces.WriteRequest) *string {
 }
 
 func hitormiss(ctx context.Context, req *twoserivces.HitOrMissRequest) *string {
+	arrivalTime := time.Now()
+	startTime := time.Now()
 	dice := rand.Float32()
 	if dice < req.HitRate {
 		invoke.InvokeHit(ctx, Callee, "ro_hitormiss", req)
 	} else {
 		invoke.InvokeMiss[string](ctx, Callee, "ro_hitormiss", req)
 	}
+	endTime := time.Now()
+
+    // Logging
+    fmt.Printf("[%s] QueueTime=%v, InvokeTime=%v, TotalTime=%v\n",
+        Callee,
+        startTime.Sub(arrivalTime),     // Queue time (very small if no queuing in Go scheduler)
+        endTime.Sub(startTime),         // Processing time (Invoke)
+        endTime.Sub(arrivalTime),       // Total handler time
+    )
 	resp := "OK"
 	return &resp
 }
@@ -53,6 +66,10 @@ func invalidationExperiment(ctx context.Context, req *loadcm.InvalidationExperim
 }
 
 func main() {
+	flag.Set("logtostderr", "true")         // Ensure glog logs go to stderr
+	flag.Set("stderrthreshold", "INFO")     // Change to "ERROR" if you want only errors
+	flag.Parse()
+	
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
 	go cm.ZmqProxy()
 	http.HandleFunc("/heartbeat", heartbeat)

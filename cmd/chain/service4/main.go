@@ -13,7 +13,7 @@ import (
 )
 
 var Callee = "backend"
-var MaxProcs = 8
+var MaxProcs = 4
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte("Heartbeat\n"))
