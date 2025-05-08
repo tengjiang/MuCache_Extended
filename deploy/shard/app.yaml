@@ -30,7 +30,7 @@ metadata:
   labels:
     app: "${APP_NAME_NO_UNDERSCORES}"
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: "${APP_NAME_NO_UNDERSCORES}"

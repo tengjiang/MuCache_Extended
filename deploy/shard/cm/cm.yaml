@@ -29,7 +29,7 @@ metadata:
   labels:
     app: cm${NODE_IDX}${SHARD_IDX}
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: cm${NODE_IDX}${SHARD_IDX}

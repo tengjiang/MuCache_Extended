@@ -11,6 +11,13 @@ master:
   disableCommands: []
   persistence:
     enabled: false
+  resources:
+    requests:
+      cpu: "1500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1500m"
+      memory: "2Gi"
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
