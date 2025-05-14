@@ -47,12 +47,12 @@ def main():
 
     ## TODO: We might want some more complex input workload,
     ##       with a distribution and writes
-    baseline_endpoint = f'/ro_read'
+    baseline_endpoint = f'ro_read'
     baseline_data = {
         "k": 1
     }
 
-    ours_endpoint = f'/ro_hitormiss'
+    ours_endpoint = f'ro_hitormiss'
     ours_data = {
         "k": 1,
         "hit_rate": 0.5
