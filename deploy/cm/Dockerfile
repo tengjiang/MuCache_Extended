@@ -12,9 +12,16 @@ COPY ./go.mod /app/
 COPY ./go.sum /app/
 WORKDIR /app
 
+RUN go mod download
+
 ENV NODE_IDX=$NODE_IDX
 ENV CM_ADDS=$CM_ADDS
 ENV HTTP_BATCH_SIZE=$HTTP_BATCH_SIZE
+ENV BATCH_CALL_INVALIDATION=$BATCH_CALL_INVALIDATION
 
 ## TODO: Add an HTTP BATCH SIZE argument in cm
-CMD CGO_ENABLED=1 GOOS=linux go run -tags k8s,node$NODE_IDX /app/cmd/cm -logtostderr=true --port 5550 --cm_adds $CM_ADDS
+CMD if [ "$BATCH_CALL_INVALIDATION" = "true" ]; then \
+        CGO_ENABLED=1 GOOS=linux go run -tags k8s,node$NODE_IDX /app/cmd/cm -logtostderr=true --port 5550 --cm_adds $CM_ADDS -batch_call_invalidation=true; \
+    else \
+        CGO_ENABLED=1 GOOS=linux go run -tags k8s,node$NODE_IDX /app/cmd/cm -logtostderr=true --port 5550 --cm_adds $CM_ADDS -batch_call_invalidation=false; \
+    fi

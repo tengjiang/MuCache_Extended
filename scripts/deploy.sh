@@ -13,6 +13,8 @@ export ttl=${4:-0}
 ## or whether we run each on its own node. Options: standard, <NUM> 
 export single_node_flag=${5:-standard}
 
+export batch_call_invalidation=${6:-true}
+
 declare -A all_services
 all_services["singleservice"]="service"
 all_services["twoservices"]="caller callee"
@@ -64,6 +66,7 @@ if [ "$cm_enabled" = "true" ]; then
     fi
     NODE_IDX="${node_idx}" \
       CM_ADDS=$cm_adds \
+      BATCH_CALL_INVALIDATION=$batch_call_invalidation \
       HTTP_BATCH_SIZE=${mucache_http_batch_size:-20} \
       envsubst <"${MUCACHE_TOP}/deploy/cm/cm.yaml" | kubectl apply -f -
   done

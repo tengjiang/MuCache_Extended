@@ -50,6 +50,8 @@ spec:
               value: "${NODE_IDX}"
             - name: CM_ADDS
               value: ${CM_ADDS}
+            - name: BATCH_CALL_INVALIDATION
+              value: "${BATCH_CALL_INVALIDATION}"
 #            - name: HTTP_BATCH_SIZE
 #              value: "${HTTP_BATCH_SIZE}"
           ports:
@@ -60,11 +62,11 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              cpu: "1500m"
-              memory: "1Gi"
-            limits:
-              cpu: "1500m"
+              cpu: "2500m"
               memory: "2Gi"
+            limits:
+              cpu: "2500m"
+              memory: "3Gi"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

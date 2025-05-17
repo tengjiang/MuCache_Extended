@@ -21,6 +21,7 @@ type Config struct {
 	cacheClient   *redis.Client
 	cmAddresses   map[cm.ServiceName]string
 	printTimeFreq int
+	batchCallInvalidation bool
 }
 
 // ReadCacheManagerAddressFile returns a tuple of
@@ -78,7 +79,7 @@ func ReadCacheManagerAddressFile(cmAddsFile string) (map[cm.ServiceName]string, 
 	return cmAddresses, serviceName
 }
 
-func InitConfig(httpP int, cmAddsFile string, printTimeFreq int) *Config {
+func InitConfig(httpP int, cmAddsFile string, printTimeFreq int, batchCallInvalidation bool) *Config {
 	cmAddresses, serviceName := ReadCacheManagerAddressFile(cmAddsFile)
 	// Initialize a memcached client
 	//mc := cm.CreateCacheClient(memcachedP)
@@ -89,6 +90,7 @@ func InitConfig(httpP int, cmAddsFile string, printTimeFreq int) *Config {
 		cacheClient:   c,
 		cmAddresses:   cmAddresses,
 		printTimeFreq: printTimeFreq,
+		batchCallInvalidation: batchCallInvalidation,
 	}
 	return &cfg
 }
