@@ -80,13 +80,13 @@ spec:
           volumeMounts:
             - name: dapr-unix-domain-socket
               mountPath: /tmp/dapr-socket
-      resources:
-        requests:
-          cpu: "1500m"
-          memory: "1Gi"
-        limits:
-          cpu: "1500m"
-          memory: "2Gi"
+          resources:
+            requests:
+              cpu: "3000m"
+              memory: "1Gi"
+            limits:
+              cpu: "7000m"
+              memory: "2Gi"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

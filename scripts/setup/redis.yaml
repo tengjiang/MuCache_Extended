@@ -13,10 +13,10 @@ master:
     enabled: false
   resources:
     requests:
-      cpu: "1500m"
+      cpu: "300m"
       memory: "1Gi"
     limits:
-      cpu: "1500m"
+      cpu: "2000m"
       memory: "2Gi"
   affinity:
     nodeAffinity:
