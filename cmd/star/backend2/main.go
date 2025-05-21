@@ -38,7 +38,9 @@ func write(ctx context.Context, req *twoserivces.WriteRequest) *string {
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_read", wrappers.ROWrapper[twoserivces.ReadRequest, twoserivces.ReadResponse](read))
 	http.HandleFunc("/write", wrappers.NonROWrapper[twoserivces.WriteRequest, string](write))

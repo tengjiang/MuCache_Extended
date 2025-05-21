@@ -43,7 +43,9 @@ func initCurrencies(ctx context.Context, req *boutique.InitCurrencyRequest) *bou
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/set_currency", wrappers.NonROWrapper[boutique.SetCurrencySupportRequest, boutique.SetCurrencySupportResponse](setCurrency))
 	http.HandleFunc("/init_currencies", wrappers.NonROWrapper[boutique.InitCurrencyRequest, boutique.InitCurrencyResponse](initCurrencies))

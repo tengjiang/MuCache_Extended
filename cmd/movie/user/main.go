@@ -39,7 +39,9 @@ func getUserId(ctx context.Context, req *movie.GetUserIdRequest) *movie.GetUserI
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/register_user", wrappers.NonROWrapper[movie.RegisterUserRequest, movie.RegisterUserResponse](registerUser))
 	http.HandleFunc("/login", wrappers.NonROWrapper[movie.LoginRequest, movie.LoginResponse](login))

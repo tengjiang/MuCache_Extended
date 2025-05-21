@@ -25,7 +25,9 @@ func placeOrder(ctx context.Context, req *boutique.PlaceOrderRequest) *boutique.
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/place_order", wrappers.NonROWrapper[boutique.PlaceOrderRequest, boutique.PlaceOrderResponse](placeOrder))
 	err := http.ListenAndServe(":3000", nil)

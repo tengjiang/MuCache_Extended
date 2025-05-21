@@ -33,7 +33,9 @@ func readPlot(ctx context.Context, req *movie.ReadPlotRequest) *movie.ReadPlotRe
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/write_plot", wrappers.NonROWrapper[movie.WritePlotRequest, movie.WritePlotResponse](writePlot))
 	http.HandleFunc("/ro_read_plot", wrappers.ROWrapper[movie.ReadPlotRequest, movie.ReadPlotResponse](readPlot))

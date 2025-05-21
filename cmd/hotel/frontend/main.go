@@ -6,6 +6,7 @@ import (
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
+	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
 	"runtime"
 )
@@ -41,7 +42,10 @@ func reservation(ctx context.Context, req *hotel.FrontendReservationRequest) *ho
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	//common.InitFlags()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_search_hotels", wrappers.ROWrapper[hotel.SearchHotelsRequest, hotel.SearchHotelsResponse](searchHotels))
 	http.HandleFunc("/store_hotel", wrappers.NonROWrapper[hotel.StoreHotelRequest, hotel.StoreHotelResponse](storeHotel))

@@ -26,7 +26,9 @@ func getUniqueId(ctx context.Context, req *movie.GetUniqueIdRequest) *movie.GetU
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/get_unique_id", wrappers.NonROWrapper[movie.GetUniqueIdRequest, movie.GetUniqueIdResponse](getUniqueId))
 	err := http.ListenAndServe(":3000", nil)

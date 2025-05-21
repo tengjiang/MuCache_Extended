@@ -26,7 +26,9 @@ func composeReview(ctx context.Context, req *movie.ComposeReviewRequest) *movie.
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/compose_review", wrappers.NonROWrapper[movie.ComposeReviewRequest, movie.ComposeReviewResponse](composeReview))
 	err := http.ListenAndServe(":3000", nil)

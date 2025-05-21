@@ -26,7 +26,9 @@ func readPage(ctx context.Context, req *movie.ReadPageRequest) *movie.ReadPageRe
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_read_page", wrappers.ROWrapper[movie.ReadPageRequest, movie.ReadPageResponse](readPage))
 	err := http.ListenAndServe(":3000", nil)

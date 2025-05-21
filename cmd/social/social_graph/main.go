@@ -58,7 +58,9 @@ func main() {
 	} else {
 		fmt.Println(runtime.GOMAXPROCS(8))
 	}
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/insert_user", wrappers.NonROWrapper[social.InsertUserRequest, string](InsertUser))
 	http.HandleFunc("/ro_get_followers", wrappers.ROWrapper[social.GetFollowersRequest, social.GetFollowersResponse](GetFollowers))

@@ -33,7 +33,9 @@ func readMovieReviews(ctx context.Context, req *movie.ReadMovieReviewsRequest) *
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/upload_movie_review", wrappers.NonROWrapper[movie.UploadMovieReviewRequest, movie.UploadMovieReviewResponse](uploadMovieReview))
 	http.HandleFunc("/ro_read_movie_reviews", wrappers.ROWrapper[movie.ReadMovieReviewsRequest, movie.ReadMovieReviewsResponse](readMovieReviews))

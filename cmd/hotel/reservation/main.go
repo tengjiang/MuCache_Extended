@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
 	"runtime"
@@ -40,7 +41,10 @@ func addHotelAvailability(ctx context.Context, req *hotel.AddHotelAvailabilityRe
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	//common.InitFlags()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	// Note: Even though checkAvailability is ReadOnly, the developers could explicitly decide to not have it be cached,
 	//       because that could lead to stale results being seen by users

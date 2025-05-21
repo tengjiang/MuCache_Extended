@@ -50,7 +50,9 @@ func checkout(ctx context.Context, request *boutique.CheckoutRequest) *boutique.
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_home", wrappers.ROWrapper[boutique.HomeRequest, boutique.HomeResponse](home))
 	//http.HandleFunc("/set_currency", wrappers.NonROWrapper[boutique.FrontendSetCurrencyRequest, boutique.FrontendSetCurrencyResponse](setCurrency))

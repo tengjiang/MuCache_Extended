@@ -32,7 +32,9 @@ func getMovieId(ctx context.Context, req *movie.GetMovieIdRequest) *movie.GetMov
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/register_movie_id", wrappers.NonROWrapper[movie.RegisterMovieIdRequest, movie.RegisterMovieIdResponse](registerMovieId))
 	http.HandleFunc("/ro_get_movie_id", wrappers.ROWrapper[movie.GetMovieIdRequest, movie.GetMovieIdResponse](getMovieId))

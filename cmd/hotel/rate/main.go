@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
 	"runtime"
@@ -34,7 +35,10 @@ func getRates(ctx context.Context, req *hotel.GetRatesRequest) *hotel.GetRatesRe
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	//common.InitFlags()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_rate", wrappers.NonROWrapper[hotel.StoreRateRequest, hotel.StoreRateResponse](storeRate))
 	http.HandleFunc("/ro_get_rates", wrappers.ROWrapper[hotel.GetRatesRequest, hotel.GetRatesResponse](getRates))

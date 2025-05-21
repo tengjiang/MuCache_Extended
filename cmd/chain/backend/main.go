@@ -15,7 +15,7 @@ import (
 	//_ "net/http/pprof"
 )
 
-var MaxProcs = 4
+var MaxProcs = 8
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte("Heartbeat\n"))
@@ -50,7 +50,9 @@ func main() {
 	prev := runtime.GOMAXPROCS(MaxProcs)
 	fmt.Printf("Set GOMAXPROCS to %d (was %d before)\n", MaxProcs, prev)
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 
 	// fmt.Println("Starting pprof server on :6060")
     // err2 := http.ListenAndServe("localhost:6060", nil)

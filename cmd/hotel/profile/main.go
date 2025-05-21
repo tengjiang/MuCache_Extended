@@ -6,6 +6,7 @@ import (
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
+	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
 	"runtime"
 )
@@ -34,7 +35,10 @@ func getProfiles(ctx context.Context, req *hotel.GetProfilesRequest) *hotel.GetP
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	//common.InitFlags()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_profile", wrappers.NonROWrapper[hotel.StoreProfileRequest, hotel.StoreProfileResponse](storeProfile))
 	http.HandleFunc("/ro_get_profiles", wrappers.ROWrapper[hotel.GetProfilesRequest, hotel.GetProfilesResponse](getProfiles))

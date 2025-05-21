@@ -31,7 +31,9 @@ func shipOrder(ctx context.Context, req *boutique.ShipOrderRequest) *boutique.Sh
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_get_quote", wrappers.ROWrapper[boutique.GetQuoteRequest, boutique.GetQuoteResponse](getQuote))
 	http.HandleFunc("/ship_order", wrappers.NonROWrapper[boutique.ShipOrderRequest, boutique.ShipOrderResponse](shipOrder))

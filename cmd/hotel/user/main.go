@@ -6,6 +6,7 @@ import (
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
+	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
 	"runtime"
 )
@@ -33,7 +34,10 @@ func login(ctx context.Context, req *hotel.LoginRequest) *hotel.LoginResponse {
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	//common.InitFlags()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/register_user", wrappers.NonROWrapper[hotel.RegisterUserRequest, hotel.RegisterUserResponse](registerUser))
 	http.HandleFunc("/login", wrappers.NonROWrapper[hotel.LoginRequest, hotel.LoginResponse](login))

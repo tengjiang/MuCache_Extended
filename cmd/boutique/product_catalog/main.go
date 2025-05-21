@@ -51,7 +51,9 @@ func addProducts(ctx context.Context, req *boutique.AddProductsRequest) *boutiqu
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/add_product", wrappers.NonROWrapper[boutique.AddProductRequest, boutique.AddProductResponse](addProduct))
 	http.HandleFunc("/add_products", wrappers.NonROWrapper[boutique.AddProductsRequest, boutique.AddProductsResponse](addProducts))

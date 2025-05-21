@@ -33,7 +33,9 @@ func readMovieInfo(ctx context.Context, req *movie.ReadMovieInfoRequest) *movie.
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_movie_info", wrappers.NonROWrapper[movie.StoreMovieInfoRequest, movie.StoreMovieInfoResponse](storeMovieInfo))
 	http.HandleFunc("/ro_read_movie_info", wrappers.ROWrapper[movie.ReadMovieInfoRequest, movie.ReadMovieInfoResponse](readMovieInfo))

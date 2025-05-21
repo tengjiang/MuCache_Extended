@@ -25,7 +25,9 @@ func getRecommendations(ctx context.Context, req *boutique.GetRecommendationsReq
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_get_recommendations", wrappers.ROWrapper[boutique.GetRecommendationsRequest, boutique.GetRecommendationsResponse](getRecommendations))
 	err := http.ListenAndServe(":3000", nil)

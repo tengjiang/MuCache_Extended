@@ -52,7 +52,9 @@ func main() {
 	} else {
 		fmt.Println(runtime.GOMAXPROCS(8))
 	}
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_post", wrappers.NonROWrapper[social.StorePostRequest, social.StorePostResponse](storePost))
 	http.HandleFunc("/store_post_multi", wrappers.NonROWrapper[social.StorePostMultiRequest, social.StorePostMultiResponse](storePostMulti))

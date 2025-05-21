@@ -25,7 +25,9 @@ func sendEmail(ctx context.Context, req *boutique.SendOrderConfirmationRequest) 
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	go cm.ZmqProxy()
+	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+		go cm.ZmqProxy()
+	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_send_email", wrappers.ROWrapper[boutique.SendOrderConfirmationRequest, boutique.SendOrderConfirmationResponse](sendEmail))
 	err := http.ListenAndServe(":3000", nil)
