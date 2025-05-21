@@ -38,7 +38,7 @@ pub enum App {
 
 impl_backend!(CM, CMThroughput, Hotel, Social, Boutique, Movie, TwoServices, Fanin);
 
-#[tokio::main(worker_threads = 4)]
+#[tokio::main(worker_threads = 12)]
 async fn main() {
     tracing_subscriber::fmt::init();
     let app = App::parse();
