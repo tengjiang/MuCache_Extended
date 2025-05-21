@@ -136,10 +136,10 @@ def populate_everything(num_of_users: int, info_size: int, hotels):
         for hotel in hotels:
             # For machines with lower resources, the post requests hang and overwhelm the frontend, thus we reduce the size by reducing the info_size
             # Results still similar to cache_size on paper
-            f = executor.submit(add_hotel, hotel, 5)
+            f = executor.submit(add_hotel, hotel, 50)
             pending_futures.append(f)
         for f in tqdm( pending_futures ):
-            f.result(timeout=10)
+            f.result()
 
 
 def main(args):
