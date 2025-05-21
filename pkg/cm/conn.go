@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	zmq "github.com/pebbe/zmq4"
 	"net/http"
+	"time"
 )
 
 const HttpStartSuffix = "/start"
@@ -17,7 +18,7 @@ const HttpInvSuffix = "/inv"
 const HttpInvCallsSuffix = "/invcalls"
 const HttpSaveCallsSuffix = "/save"
 
-const QueueSize = 20000
+const QueueSize = 100000
 
 // WQ is work queue; Go channel is thread-safe
 // it's used both at Server and Client side
@@ -28,7 +29,8 @@ var WQ = make(chan interface{}, QueueSize)
 func SetupZmqConnection() *zmq.Socket {
 	ctx, _ := zmq.NewContext()
 	publisher, _ := ctx.NewSocket(zmq.PUB)
-	publisher.SetSndhwm(1100000)
+	publisher.SetSndhwm(500000)
+	publisher.SetSndbuf(50 * 1024 * 1024) // 4 MB
 	publisher.Bind("tcp://*:5550")
 
 	syncservice, _ := ctx.NewSocket(zmq.REP)
@@ -90,6 +92,7 @@ func ZmqProxy() {
 		}
 	}
 }
+
 
 func SendRequestZmq(req interface{}, t string) {
 	fullReq := make(map[string]interface{})
