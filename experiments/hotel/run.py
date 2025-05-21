@@ -62,18 +62,20 @@ def main():
     uppers = {}
     ours = {}
 
+    # To run different experiments
+    file_ext = ""
     for req in reqs:
         baseline = run_once(req, cm="false")
         baselines[req] = baseline
-        with open(f"{APP}-baseline.json", "w") as f:
+        with open(f"{APP}-baseline{file_ext}.json", "w") as f:
             json.dump(baselines, f, indent=2)
         upper = run_once(req, cm="upper")
         uppers[req] = upper
-        with open(f"{APP}-upper.json", "w") as f:
+        with open(f"{APP}-upper{file_ext}.json", "w") as f:
             json.dump(uppers, f, indent=2)
         our = run_once(req, cm="true")
         ours[req] = our
-        with open(f"{APP}.json", "w") as f:
+        with open(f"{APP}{file_ext}.json", "w") as f:
             json.dump(ours, f, indent=2)
     clean2()
 
@@ -81,11 +83,11 @@ def main():
     print(ours)
     print(uppers)
 
-    with open(f"{APP}-baseline.json", "w") as f:
+    with open(f"{APP}-baseline{file_ext}.json", "w") as f:
         json.dump(baselines, f, indent=2)
-    with open(f"{APP}.json", "w") as f:
+    with open(f"{APP}{file_ext}.json", "w") as f:
         json.dump(ours, f, indent=2)
-    with open(f"{APP}-upper.json", "w") as f:
+    with open(f"{APP}-upper{file_ext}.json", "w") as f:
         json.dump(uppers, f, indent=2)
 
 

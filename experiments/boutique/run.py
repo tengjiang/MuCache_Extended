@@ -56,7 +56,7 @@ def run_once(req: int, cm: str, ttl=None):
     deploy(cm=cm, ttl=ttl)
     populate()
     p = start_proxy()
-    top_p, top_q = top_process()
+    #top_p, top_q = top_process()
     res = run_shell(compose_oha_proxy(req=req, duration=120))
     res = parse_res(res)
     os.kill(p.pid, signal.SIGINT)
@@ -64,9 +64,9 @@ def run_once(req: int, cm: str, ttl=None):
     p.wait()
     if cm in ["true", "upper"]:
         res["hit_rate"] = get_hit_rate_redis()
-    usage = json.loads(top_q.get())
-    pprint(usage)
-    top_p.join()
+    # usage = json.loads(top_q.get())
+    # pprint(usage)
+    # top_p.join()
     return res
 
 
@@ -86,10 +86,11 @@ def main():
     ours = {}
 
     ## Note: Save every iteration so that we get incremental results
+    file_ext = "-originalSize-5000app-12proxy-4zmq"
     for req in reqs:
         baseline = run_once(req, cm="false")
         baselines[req] = baseline
-        with open(f"{APP}-baseline.json", "w") as f:
+        with open(f"{APP}-baseline{file_ext}.json", "w") as f:
             json.dump(baselines, f, indent=2)
 
         upper = run_once(req, cm="upper")
@@ -99,7 +100,7 @@ def main():
 
         our = run_once(req, cm="true")
         ours[req] = our
-        with open(f"{APP}.json", "w") as f:
+        with open(f"{APP}{file_ext}.json", "w") as f:
             json.dump(ours, f, indent=2)
     clean2()
 

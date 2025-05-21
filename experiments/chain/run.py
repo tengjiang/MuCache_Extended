@@ -68,9 +68,12 @@ def main():
     clean2()
     print(baselines)
     print(ours)
-    with open(f"{APP}-baseline.json", "w") as f:
+
+    # To run different experiments
+    file_ext = ""
+    with open(f"{APP}-baseline{file_ext}.json", "w") as f:
         json.dump(baselines, f, indent=2)
-    with open(f"{APP}.json", "w") as f:
+    with open(f"{APP}{file_ext}.json", "w") as f:
         json.dump(ours, f, indent=2)
 
 
