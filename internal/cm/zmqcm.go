@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	zmq "github.com/pebbe/zmq4"
 	"time"
+	//"bytes"
 )
 
 func Serve0mq2(cfg *Config) {
@@ -62,11 +63,19 @@ func Serve0mq(cfg *Config) {
 	glog.Info("ZMQ connected")
 
 	for {
+		start := time.Now()
 		msg, err := subscriber.Recv(0)
 		if err != nil {
+			glog.Infof( "[ERROR] Failed to receive message: %v", err )
 			panic(err)
 		}
+		elapsed := time.Since(start)
+		glog.Infof("[ZMQ] Received message in %v", elapsed)
+
+		start = time.Now()
 		handleMsg(msg)
+		elapsed = time.Since(start)
+		glog.Infof("[ZMQ] Finished handling message in %v", elapsed)
 	}
 }
 
@@ -78,6 +87,7 @@ func handleMsgBytes(msg []byte) {
 	var typedReq map[string]json.RawMessage
 	err := json.Unmarshal(msg, &typedReq)
 	if err != nil {
+		glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 		panic(err)
 	}
 	var t string
@@ -90,6 +100,7 @@ func handleMsgBytes(msg []byte) {
 		var req cm.StartRequest
 		err = json.Unmarshal(typedReq["inner"], &req)
 		if err != nil {
+			glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 			panic(err)
 		}
 		cm.WQ <- req
@@ -97,6 +108,7 @@ func handleMsgBytes(msg []byte) {
 		var req cm.EndRequest
 		err = json.Unmarshal(typedReq["inner"], &req)
 		if err != nil {
+			glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 			panic(err)
 		}
 		cm.WQ <- req
@@ -104,6 +116,7 @@ func handleMsgBytes(msg []byte) {
 		var req cm.InvalidateKeyRequest
 		err = json.Unmarshal(typedReq["inner"], &req)
 		if err != nil {
+			glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 			panic(err)
 		}
 		cm.WQ <- req
@@ -111,6 +124,7 @@ func handleMsgBytes(msg []byte) {
 		var req cm.InvalidateCallsRequest
 		err = json.Unmarshal(typedReq["inner"], &req)
 		if err != nil {
+			glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 			panic(err)
 		}
 		cm.WQ <- req
@@ -118,6 +132,7 @@ func handleMsgBytes(msg []byte) {
 		var req cm.SaveCallsRequest
 		err = json.Unmarshal(typedReq["inner"], &req)
 		if err != nil {
+			glog.Infof("[ERROR] Failed to unmarshal message: %v", err)
 			panic(err)
 		}
 		cm.WQ <- req

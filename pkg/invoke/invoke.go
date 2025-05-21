@@ -75,10 +75,14 @@ func Invoke_deprecated[T interface{}](ctx context.Context, app string, method st
 func CheckCache(ctx context.Context, app string, method string, buf []byte) (cm.ReturnVal, bool) {
 	if common.CMEnabled || common.UpperBoundEnabled {
 		if utility.IsCallReadOnly(app, method) {
+			start := time.Now()
 			ca := cm.CallArgs(wrappers.HashCallArgs(app, method, buf))
+			glog.Infof("[MuCache Debug] Checking cache for key: %s", string(ca))
 			ret, hit := wrappers.PreCall(ctx, ca)
+			glog.Infof("[MuCache Debug] PreCall result for key %s: hit=%v", string(ca), hit)
 			if hit {
 				//glog.Info("Cache hit")
+				glog.Infof("[MuCache] Cache HIT for %s/%s – lookup took %v", app, method, time.Since(start))
 				return ret, true
 			} else {
 				//glog.Info("Cache miss")
@@ -183,6 +187,9 @@ func performRequest[T interface{}](ctx context.Context, req *http.Request, res *
 	if err != nil {
 		panic(err)
 	}
+	if( resp.StatusCode != http.StatusOK ) {
+		glog.Infof("[MuCache] Non-OK HTTP Response: %d for %s/%s", resp.StatusCode, app, method)
+	}
 	utility.Assert(resp.StatusCode == http.StatusOK)
 	defer resp.Body.Close()
 	if common.UpperBoundEnabled && utility.IsCallReadOnly(app, method) {
@@ -256,6 +263,8 @@ func ShardInvoke[T interface{}](ctx context.Context, app string, method string, 
 
 func InvokeHit(ctx context.Context, app string, method string, input interface{}) {
 	buf, err := json.Marshal(input)
+
+	start := time.Now()
 	if err != nil {
 		panic(err)
 	}
@@ -264,6 +273,7 @@ func InvokeHit(ctx context.Context, app string, method string, input interface{}
 	ca := cm.CallArgs(wrappers.HashCallArgs(app, method, buf))
 	//glog.Info("Start PreCall")
 	wrappers.PreCall(ctx, ca) // ignore the return value
+	glog.Infof("[MuCache] Simulated hit check for %s/%s took %v (not actual usage)", app, method, time.Since(start))
 	//glog.Info("End PreCall")
 	return
 }
@@ -315,7 +325,9 @@ func PollUntilMiss(ctx context.Context, app string, method string, input interfa
 }
 
 func InvokeMiss[T interface{}](ctx context.Context, app string, method string, input interface{}) {
+	start := time.Now()
 	InvokeMissVal[T](ctx, app, method, input)
+	glog.Infof("[MuCache] %s → %s/%s (miss) took %v", common.MyName, app, method, time.Since(start))
 	return
 }
 

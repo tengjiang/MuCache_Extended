@@ -7,14 +7,17 @@ import (
 	"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/utility"
 	"github.com/goccy/go-json"
+	"github.com/golang/glog"
 	"hash/fnv"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var DEBUG_CA = false
 
 func HashCallArgs(app string, method string, input []byte) string {
+	// glog.Infof("[MuCache Debug] Hashing key with app: %s, method: %s, input: %s", app, method, input)
 	if DEBUG_CA {
 		return fmt.Sprintf("%s.%s.%s", app, method, input)
 	}
@@ -113,7 +116,10 @@ func PreCall(ctx context.Context, ca cm.CallArgs) (cm.ReturnVal, bool) {
 	}
 	//start := time.Now()
 	mc := cm.GetOrCreateCacheClient()
+
+	start := time.Now()
 	ret, exists := cm.CacheGet(mc, ca)
+	glog.Infof("PreCall latency: %v", time.Since(start))
 	//if time.Since(start) > 1*time.Millisecond {
 	//	glog.Info("CacheGet took ", time.Since(start), ", ", runtime.NumGoroutine())
 	//}
@@ -122,9 +128,8 @@ func PreCall(ctx context.Context, ca cm.CallArgs) (cm.ReturnVal, bool) {
 
 func ROWrapper[ReqType interface{}, RespType interface{}](handler func(context.Context, *ReqType) *RespType) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//glog.Info("Start SetupCtx")
 		ctx, input := SetupCtxFromHTTPReq(r, true)
-		//glog.Info("End SetupCtx")
+
 		var req ReqType
 		err := json.Unmarshal(input, &req)
 		if err != nil {
@@ -132,14 +137,15 @@ func ROWrapper[ReqType interface{}, RespType interface{}](handler func(context.C
 		}
 		//glog.Info("Start Handler")
 		resp := handler(ctx, &req)
-		//glog.Info("End Handler")
+
 		respByte, err := json.Marshal(*resp)
 		if err != nil {
-			panic(err)
+			glog.Errorf("[ROWrapper] Failed to marshal response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
-		//glog.Info("Start PreReqEnd")
+
 		PreReqEnd(ctx, cm.ReturnVal(respByte))
-		//glog.Info("End PreReqEnd")
 		utility.DumpJson(resp, w)
 	}
 }

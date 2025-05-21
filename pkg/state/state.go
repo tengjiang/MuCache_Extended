@@ -32,16 +32,19 @@ func GetState[T interface{}](ctx context.Context, key string) (T, error) {
 	}
 	client, err := dapr.NewClient()
 	if err != nil {
+		fmt.Printf( "Dapr fail: %v", key )
 		panic(err)
 	}
 	// get store name from ctx
 	//store := ctx.Value("store").(string)
 	item, err := client.GetState(ctx, common.RedisUrl, key, nil)
 	if err != nil {
+		fmt.Printf( "Store not found: %v", key )
 		panic(err)
 	}
 	var value T
 	if len(item.Value) == 0 {
+		fmt.Printf( "Key Not Found: %v", key )
 		return value, errors.New("key not found")
 	}
 	err = json.Unmarshal(item.Value, &value)

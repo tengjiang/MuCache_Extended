@@ -68,15 +68,25 @@ func ZmqProxy() {
 		// Note: There is a tradeoff here w.r.t. where to do the json encoding.
 		//       Doing it outside is multi-threaded but adds to critical path,
 		//         while doing it here is single threaded but keeps it off critical path
+		start := time.Now()
 		b, err := json.Marshal(req)
 		if err != nil {
+			glog.Errorf("[ZMQ] Failed to marshal request: %v", err)
 			panic(err)
 		}
-
+		glog.Infof("[ZMQ] Sending message of size %d bytes. Current queue size: %d", len(b), len(WQ))
 		// TODO: We might want to batch send things other than start call here (to improve on the receiving end)
 		_, err = zmqPublisher.Send(string(b), 0)
 		if err != nil {
-			panic(err)
+			glog.Errorf("[ZMQ] Failed to send message: %v", err)
+            if err.Error() == "Resource temporarily unavailable" {
+                glog.Errorf("[ZMQ] [203] Resource unavailable. Publisher may be overloaded or disconnected.")
+            }
+            continue // Try to recover instead of panicking
+			// panic(err)
+		} else {
+			elapsed := time.Since(start)
+			glog.Infof("[ZMQ] Message sent successfully in %v", elapsed )
 		}
 	}
 }

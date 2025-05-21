@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/redis/go-redis/v9"
+	"github.com/golang/glog"
 )
 
 ////
@@ -67,6 +68,7 @@ func CacheGet(c *redis.Client, ca CallArgs) (ReturnVal, bool) {
 //		mc.Set(&memcache.Item{Key: ca.ToString(), Value: ret.ToByteArray()})
 //	}
 func CacheSet(c *redis.Client, ca CallArgs, ret ReturnVal) {
+	glog.Infof("[MuCache Debug] Writing key to Redis: %v", ca)
 	err := c.Set(context.Background(), string(ca), string(ret), 0).Err()
 	if err != nil {
 		panic(err)
