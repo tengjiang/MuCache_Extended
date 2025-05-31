@@ -13,7 +13,9 @@ export ttl=${4:-0}
 ## or whether we run each on its own node. Options: standard, <NUM> 
 export single_node_flag=${5:-standard}
 
-export batch_call_invalidation=${6:-true}
+export batch_call_invalidation=${6:-false}
+
+export prefetch=${7:-false}
 
 declare -A all_services
 all_services["singleservice"]="service"
@@ -51,6 +53,7 @@ for idx in "${!services[@]}"; do
     APP_NAMESPACE="$application_namespace" \
     APP_NAME="$app_name" \
     APP_NAME_NO_UNDERSCORES="$app_name_no_underscores" \
+    PREFETCH="$prefetch" \
     envsubst <"${MUCACHE_TOP}/deploy/app.yaml" | kubectl apply -f -
 done
 

@@ -119,11 +119,11 @@ def clean(mem=None):
     run_shell(f"{PROJECT_PATH}/scripts/setup/restart_redis.sh {NWORKERS}")
 
 
-def clean2(mem=0):
+def clean2(mem=0, eviction_policy="allkeys-lru"):
     assert APP in APPS, f"Invalid app: {APP}"
     print("Cleaning up...")
     run_shell(f"{PROJECT_PATH}/scripts/clean.sh {APP}")
-    run_shell(f"{PROJECT_PATH}/scripts/setup/restart_cache.sh {len(APPS[APP])} {mem}")
+    run_shell(f"{PROJECT_PATH}/scripts/setup/restart_cache.sh {len(APPS[APP])} {mem} {eviction_policy}")
     run_shell(f"{PROJECT_PATH}/scripts/setup/restart_redis.sh {len(APPS[APP])}")
     for i in range(len(APPS[APP])):
         run_shell(f"kubectl rollout status deployment/cache{i + 1}-redis-master")
@@ -139,13 +139,31 @@ def shard_clean2(shard_count: int, mem=0):
         run_shell(f"kubectl rollout status deployment/cache{i + 1}-redis-master")
 
 
-def deploy(cm=str, ttl=None):
+def deploy(cm=str, ttl=None, batch_inval = False, prefetch = False):
     print("Deploying...")
     assert (cm in VALID_CM_CHOICES)
+    command = f"{PROJECT_PATH}/scripts/deploy.sh {DOCKER_NAME} {APP} {cm}"
     if not ttl is None:
-        print(run_shell(f"{PROJECT_PATH}/scripts/deploy.sh {DOCKER_NAME} {APP} {cm} {ttl}"))
+        command += f" {ttl}"
     else:
-        print(run_shell(f"{PROJECT_PATH}/scripts/deploy.sh {DOCKER_NAME} {APP} {cm}"))
+        command += " 0"
+    
+    command += " standard"
+    if batch_inval:
+        command += " true"
+    else:
+        command += " false"
+    if( prefetch ):
+        command += " true"
+    else:
+        command += " false"
+
+    print( "Running command:", command )
+    # if not ttl is None:
+    #     print(run_shell(f"{PROJECT_PATH}/scripts/deploy.sh {DOCKER_NAME} {APP} {cm} {ttl}"))
+    # else:
+    #     print(run_shell(f"{PROJECT_PATH}/scripts/deploy.sh {DOCKER_NAME} {APP} {cm}"))
+    print( run_shell( command ) )
     for service in APPS_NO_UNDERSCORE[APP]:
         run_shell(f"kubectl rollout status deployment/{service}")
     time.sleep(10)

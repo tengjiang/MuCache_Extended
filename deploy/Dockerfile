@@ -1,26 +1,33 @@
 FROM golang:alpine
 
-#RUN apk add --no-cache --update libzmq git go gcc g++ pkgconfig musl-dev zeromq-dev
-RUN apk add --no-cache --update gcc musl-dev zeromq-dev iftop
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev zeromq-dev iftop
 
-RUN mkdir /app
+# Set working directory
+WORKDIR /app
+
+# Copy Go mod files and download dependencies first
+COPY ./go.mod ./go.sum ./
+RUN go mod download
+
+# Copy source code
 COPY ./cmd /app/cmd
 COPY ./internal /app/internal
 COPY ./pkg /app/pkg
-COPY ./go.mod /app/
-COPY ./go.sum /app/
-WORKDIR /app
 
-ENV APP_NAME=$APP_NAME
-ENV APP_NAMESPACE=$APP_NAMESPACE
-ENV NODE_IDX=$NODE_IDX
-ENV CM_ENABLED=$CM_ENABLED
-ENV EXPIRATION_TTL=$EXPIRATION_TTL
+# Set environment variables (can be overridden later)
+ENV APP_NAME=main
+ENV APP_NAMESPACE=frontend
+ENV NODE_IDX=1
+ENV CM_ENABLED=false
+ENV EXPIRATION_TTL=0
+ENV PREFETCH=${PREFETCH}
 
+# Final runtime command: use if-else to decide
 CMD if [ "$CM_ENABLED" = "true" ]; then \
-        CGO_ENABLED=1 GOOS=linux go run -tags k8s,node${NODE_IDX},cm /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -logtostderr=true; \
+        CGO_ENABLED=1 GOOS=linux go run -tags "k8s,node${NODE_IDX},cm" /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -prefetch=${PREFETCH} -logtostderr=true; \
     elif [ "$CM_ENABLED" = "upper" ]; then \
-        CGO_ENABLED=1 GOOS=linux go run -tags k8s,node${NODE_IDX},upperbound /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -logtostderr=true; \
+        CGO_ENABLED=1 GOOS=linux go run -tags "k8s,node${NODE_IDX},upperbound" /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -prefetch=${PREFETCH} -logtostderr=true; \
     else \
-        CGO_ENABLED=1 GOOS=linux go run -tags k8s,node${NODE_IDX} /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -logtostderr=true; \
+        CGO_ENABLED=1 GOOS=linux go run -tags "k8s,node${NODE_IDX}" /app/cmd/${APP_NAMESPACE}/${APP_NAME}/main.go -prefetch=${PREFETCH} -logtostderr=true; \
     fi

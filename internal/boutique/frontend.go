@@ -3,6 +3,12 @@ package boutique
 import (
 	"context"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
+
+	"time"
+	"fmt"
+	"strconv"
+	"github.com/google/uuid"
+	"github.com/golang/glog"
 )
 
 func Home(ctx context.Context, request HomeRequest) HomeResponse {
@@ -31,10 +37,68 @@ func FrontendSetCurrency(ctx context.Context, currency Currency) {
 	invoke.Invoke[SetCurrencySupportResponse](ctx, "currency", "set_currency", req)
 }
 
+func generateCallID() string {
+	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), uuid.New().String())
+}
+
 func BrowseProduct(ctx context.Context, productId string) BrowseProductResponse {
 	req := GetProductRequest{ProductId: productId}
 	res := invoke.Invoke[GetProductResponse](ctx, "productcatalog", "ro_get_product", req)
 	return BrowseProductResponse{res.Product}
+}
+
+func PrefetchBrowseProduct(ctx context.Context, productId string) BrowseProductResponse {
+	glog.Infof( "Prefetching product!")
+	res := BrowseProduct(ctx, productId)
+
+	// Asynchronous prefetching of adjacent products
+	go func() {
+		productIDInt, err := strconv.Atoi(productId[1:])
+		glog.Infof( "Beginning to prefetch products around product %v", productIDInt )
+		glog.Infof( "Any error: %v", err )
+		if err == nil {
+			prefetchIDs := []string{
+				"p" + strconv.Itoa(productIDInt + 1),
+				"p" + strconv.Itoa(productIDInt - 1),
+			}
+
+			for _, prefetchID := range prefetchIDs {
+				// Launch a new goroutine for each prefetch request
+				glog.Infof( "Starting to create new goroutine for product %v", prefetchID )
+				// prefetchCtx := context.Background()
+				// prefetchCtx = context.WithValue(prefetchCtx, "read-only", true)
+				// prefetchCtx = context.WithValue(prefetchCtx, "caller", ctx.caller)
+				// prefetchCtx = context.WithValue(prefetchCtx, "RID", generateCallID())
+
+				glog.Infof( "Starting goroutine to prefetch product %v", prefetchID )
+				go func(prefetchID string) {
+					defer func() {
+						if r := recover(); r != nil {
+							glog.Warningf("Recovered from panic in prefetch for product %v: %v", prefetchID, r)
+						}
+					}()
+					glog.Infof("Prefetching adjacent product: %v", prefetchID)
+	
+					// Use short-lived background context
+					mimicCtx := context.Background()
+
+					for _, key := range []interface{}{"read-only", "caller", "RID", "call-args"} {
+						if val := ctx.Value(key); val != nil {
+							mimicCtx = context.WithValue(mimicCtx, key, val)
+						}
+					}
+
+					prefetchCtx, cancel := context.WithTimeout(mimicCtx, 10*time.Millisecond)
+					defer cancel()
+	
+					prefetchReq := GetProductRequest{ProductId: prefetchID}
+					invoke.Invoke[GetProductResponse](prefetchCtx, "productcatalog", "ro_get_product", prefetchReq)
+				}(prefetchID)
+			}
+		}
+	}()
+
+	return res
 }
 
 func AddToCart(ctx context.Context, request AddToCartRequest) AddToCartResponse {

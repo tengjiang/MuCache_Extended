@@ -3,6 +3,11 @@ package movie
 import (
 	"context"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
+	"time"
+	"fmt"
+	"strconv"
+	"github.com/google/uuid"
+	"github.com/golang/glog"
 )
 
 func ReadPage(ctx context.Context, movieId string) Page {
@@ -26,4 +31,53 @@ func ReadPage(ctx context.Context, movieId string) Page {
 		Reviews:   reviewsRes.Reviews,
 	}
 	return page
+}
+
+func generateCallID() string {
+	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), uuid.New().String())
+}
+
+func PrefetchReadPage(ctx context.Context, movieId string) Page {
+	glog.Infof( "Reading Page %v", movieId)
+	res := ReadPage(ctx, movieId)
+
+	// Asynchronous prefetching of adjacent products
+	glog.Infof( "Starting goroutine to prefetch pages" )
+	go func() {
+		movieIDInt, err := strconv.Atoi(movieId)
+		glog.Infof( "Beginning to prefetch pages around page %v", movieIDInt )
+		glog.Infof( "Any error: %v", err )
+		if err == nil {
+			prefetchIDs := []string{
+				strconv.Itoa(movieIDInt + 1),
+				//strconv.Itoa(movieIDInt - 1),
+			}
+
+			for _, prefetchID := range prefetchIDs {
+				// Launch a new goroutine for each prefetch request
+				glog.Infof( "Starting to create new goroutine for page %v", prefetchID )
+				// prefetchCtx := context.Background()
+				// prefetchCtx = context.WithValue(prefetchCtx, "read-only", true)
+				// prefetchCtx = context.WithValue(prefetchCtx, "caller", ctx.caller)
+				// prefetchCtx = context.WithValue(prefetchCtx, "RID", generateCallID())
+
+				glog.Infof( "Starting goroutine to prefetch page %v", prefetchID )
+				go func(id string) {
+					defer func() {
+						if r := recover(); r != nil {
+							glog.Warningf("Recovered from panic in prefetch for page %v: %v", prefetchID, r)
+						}
+					}()
+					glog.Infof("Prefetching adjacent page: %v", prefetchID)
+
+					// prefetchCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+					// defer cancel()
+
+					ReadPage( ctx, id )
+				}(prefetchID)
+			}
+		}
+	}()
+
+	return res
 }

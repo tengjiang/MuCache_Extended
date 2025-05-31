@@ -72,6 +72,8 @@ spec:
               value: "${CM_ENABLED}"
             - name: EXPIRATION_TTL
               value: "${EXPIRATION_TTL}"
+            - name: PREFETCH
+              value: "${PREFETCH}"
           ports:
             - containerPort: 3000
             - containerPort: 5550
