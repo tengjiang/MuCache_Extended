@@ -1,0 +1,66 @@
+{
+  "600": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0011 secs\n  Slowest:\t0.1094 secs\n  Fastest:\t0.0012 secs\n  Average:\t0.0081 secs\n  Requests/sec:\t600.0029\n\n  Total data:\t210.92 KiB\n  Size/request:\t3 B\n  Size/sec:\t1.76 KiB\n\nResponse time histogram:\n  0.001 [1]     |\n  0.012 [58627] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.023 [7278]  |\u25a0\u25a0\u25a0\n  0.034 [3838]  |\u25a0\u25a0\n  0.044 [2122]  |\u25a0\n  0.055 [60]    |\n  0.066 [22]    |\n  0.077 [25]    |\n  0.088 [10]    |\n  0.099 [6]     |\n  0.109 [5]     |\n\nResponse time distribution:\n  10.00% in 0.0027 secs\n  25.00% in 0.0031 secs\n  50.00% in 0.0038 secs\n  75.00% in 0.0092 secs\n  90.00% in 0.0198 secs\n  95.00% in 0.0309 secs\n  99.00% in 0.0377 secs\n  99.90% in 0.0536 secs\n  99.99% in 0.0903 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0003 secs, 0.0001 secs, 0.0006 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 71994 responses\n\nError distribution:\n  [7] aborted due to deadline",
+    "throughput": 600.0029,
+    "hit_rate": {
+      "home_timeline": "0.43",
+      "user_timeline": "0.78"
+    }
+  },
+  "800": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0014 secs\n  Slowest:\t0.2877 secs\n  Fastest:\t0.0012 secs\n  Average:\t0.0083 secs\n  Requests/sec:\t800.0322\n\n  Total data:\t281.23 KiB\n  Size/request:\t3 B\n  Size/sec:\t2.34 KiB\n\nResponse time histogram:\n  0.001 [1]     |\n  0.030 [90787] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.058 [4933]  |\u25a0\n  0.087 [94]    |\n  0.116 [64]    |\n  0.144 [43]    |\n  0.173 [25]    |\n  0.202 [19]    |\n  0.230 [10]    |\n  0.259 [8]     |\n  0.288 [9]     |\n\nResponse time distribution:\n  10.00% in 0.0025 secs\n  25.00% in 0.0029 secs\n  50.00% in 0.0037 secs\n  75.00% in 0.0092 secs\n  90.00% in 0.0206 secs\n  95.00% in 0.0304 secs\n  99.00% in 0.0372 secs\n  99.90% in 0.1285 secs\n  99.99% in 0.2568 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0002 secs, 0.0001 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 95993 responses\n\nError distribution:\n  [12] aborted due to deadline",
+    "throughput": 800.0322,
+    "hit_rate": {
+      "home_timeline": "0.42",
+      "user_timeline": "0.78"
+    }
+  },
+  "1000": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0032 secs\n  Slowest:\t0.3183 secs\n  Fastest:\t0.0012 secs\n  Average:\t0.0083 secs\n  Requests/sec:\t999.6233\n\n  Total data:\t351.29 KiB\n  Size/request:\t3 B\n  Size/sec:\t2.93 KiB\n\nResponse time histogram:\n  0.001 [1]      |\n  0.033 [116483] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.065 [3032]   |\n  0.096 [146]    |\n  0.128 [84]     |\n  0.160 [52]     |\n  0.191 [43]     |\n  0.223 [25]     |\n  0.255 [18]     |\n  0.287 [18]     |\n  0.318 [6]      |\n\nResponse time distribution:\n  10.00% in 0.0024 secs\n  25.00% in 0.0028 secs\n  50.00% in 0.0036 secs\n  75.00% in 0.0092 secs\n  90.00% in 0.0212 secs\n  95.00% in 0.0299 secs\n  99.00% in 0.0378 secs\n  99.90% in 0.1544 secs\n  99.99% in 0.2787 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0002 secs, 0.0001 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 119908 responses\n\nError distribution:\n  [50] aborted due to deadline",
+    "throughput": 999.6233,
+    "hit_rate": {
+      "home_timeline": "0.42",
+      "user_timeline": "0.78"
+    }
+  },
+  "1200": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0014 secs\n  Slowest:\t0.3533 secs\n  Fastest:\t0.0011 secs\n  Average:\t0.0084 secs\n  Requests/sec:\t1199.9780\n\n  Total data:\t421.85 KiB\n  Size/request:\t3 B\n  Size/sec:\t3.51 KiB\n\nResponse time histogram:\n  0.001 [1]      |\n  0.036 [141754] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.072 [1890]   |\n  0.107 [221]    |\n  0.142 [72]     |\n  0.177 [24]     |\n  0.212 [14]     |\n  0.248 [7]      |\n  0.283 [4]      |\n  0.318 [2]      |\n  0.353 [2]      |\n\nResponse time distribution:\n  10.00% in 0.0023 secs\n  25.00% in 0.0027 secs\n  50.00% in 0.0036 secs\n  75.00% in 0.0097 secs\n  90.00% in 0.0225 secs\n  95.00% in 0.0301 secs\n  99.00% in 0.0397 secs\n  99.90% in 0.1035 secs\n  99.99% in 0.2175 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0002 secs, 0.0001 secs, 0.0003 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 143991 responses\n\nError distribution:\n  [8] aborted due to deadline",
+    "throughput": 1199.978,
+    "hit_rate": {
+      "home_timeline": "0.41",
+      "user_timeline": "0.78"
+    }
+  },
+  "1400": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0021 secs\n  Slowest:\t0.6826 secs\n  Fastest:\t0.0011 secs\n  Average:\t0.0108 secs\n  Requests/sec:\t1399.9675\n\n  Total data:\t492.15 KiB\n  Size/request:\t3 B\n  Size/sec:\t4.10 KiB\n\nResponse time histogram:\n  0.001 [1]      |\n  0.069 [165228] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.137 [1985]   |\n  0.206 [563]    |\n  0.274 [162]    |\n  0.342 [36]     |\n  0.410 [6]      |\n  0.478 [1]      |\n  0.546 [2]      |\n  0.614 [2]      |\n  0.683 [2]      |\n\nResponse time distribution:\n  10.00% in 0.0023 secs\n  25.00% in 0.0027 secs\n  50.00% in 0.0037 secs\n  75.00% in 0.0116 secs\n  90.00% in 0.0274 secs\n  95.00% in 0.0339 secs\n  99.00% in 0.0963 secs\n  99.90% in 0.2148 secs\n  99.99% in 0.3287 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0003 secs, 0.0001 secs, 0.0006 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 167988 responses\n\nError distribution:\n  [11] aborted due to deadline",
+    "throughput": 1399.9675,
+    "hit_rate": {
+      "home_timeline": "0.40",
+      "user_timeline": "0.78"
+    }
+  },
+  "1600": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0031 secs\n  Slowest:\t0.9196 secs\n  Fastest:\t0.0011 secs\n  Average:\t0.0344 secs\n  Requests/sec:\t1596.9587\n\n  Total data:\t561.30 KiB\n  Size/request:\t3 B\n  Size/sec:\t4.68 KiB\n\nResponse time histogram:\n  0.001 [1]      |\n  0.093 [169239] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.185 [12843]  |\u25a0\u25a0\n  0.277 [6258]   |\u25a0\n  0.368 [2777]   |\n  0.460 [397]    |\n  0.552 [47]     |\n  0.644 [10]     |\n  0.736 [10]     |\n  0.828 [7]      |\n  0.920 [3]      |\n\nResponse time distribution:\n  10.00% in 0.0023 secs\n  25.00% in 0.0027 secs\n  50.00% in 0.0069 secs\n  75.00% in 0.0302 secs\n  90.00% in 0.1138 secs\n  95.00% in 0.1842 secs\n  99.00% in 0.3088 secs\n  99.90% in 0.4142 secs\n  99.99% in 0.6465 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0002 secs, 0.0001 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 191592 responses\n\nError distribution:\n  [48] aborted due to deadline",
+    "throughput": 1596.9587,
+    "hit_rate": {
+      "home_timeline": "0.39",
+      "user_timeline": "0.77"
+    }
+  },
+  "1800": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0029 secs\n  Slowest:\t4.3992 secs\n  Fastest:\t0.0011 secs\n  Average:\t0.9474 secs\n  Requests/sec:\t1742.4169\n\n  Total data:\t612.44 KiB\n  Size/request:\t3 B\n  Size/sec:\t5.10 KiB\n\nResponse time histogram:\n  0.001 [1]     |\n  0.441 [94356] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  0.881 [43604] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  1.321 [13764] |\u25a0\u25a0\u25a0\u25a0\n  1.760 [9811]  |\u25a0\u25a0\u25a0\n  2.200 [10724] |\u25a0\u25a0\u25a0\n  2.640 [10579] |\u25a0\u25a0\u25a0\n  3.080 [14126] |\u25a0\u25a0\u25a0\u25a0\n  3.520 [5354]  |\u25a0\n  3.959 [6602]  |\u25a0\u25a0\n  4.399 [125]   |\n\nResponse time distribution:\n  10.00% in 0.0030 secs\n  25.00% in 0.0431 secs\n  50.00% in 0.5596 secs\n  75.00% in 1.6568 secs\n  90.00% in 2.8002 secs\n  95.00% in 3.3372 secs\n  99.00% in 3.8261 secs\n  99.90% in 3.9377 secs\n  99.99% in 4.0300 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0003 secs, 0.0001 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 209046 responses\n\nError distribution:\n  [49] aborted due to deadline",
+    "throughput": 1742.4169,
+    "hit_rate": {
+      "home_timeline": "0.37",
+      "user_timeline": "0.77"
+    }
+  },
+  "2000": {
+    "raw": "Summary:\n  Success rate:\t100.00%\n  Total:\t120.0022 secs\n  Slowest:\t16.0091 secs\n  Fastest:\t0.0152 secs\n  Average:\t6.5972 secs\n  Requests/sec:\t1742.5678\n\n  Total data:\t612.49 KiB\n  Size/request:\t3 B\n  Size/sec:\t5.10 KiB\n\nResponse time histogram:\n   0.015 [1]     |\n   1.615 [26354] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n   3.214 [33295] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n   4.813 [25825] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n   6.413 [29950] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n   8.012 [21160] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n   9.612 [16541] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  11.211 [14711] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  12.810 [14523] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  14.410 [15672] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n  16.009 [11030] |\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\u25a0\n\nResponse time distribution:\n  10.00% in 1.3367 secs\n  25.00% in 2.8818 secs\n  50.00% in 5.7195 secs\n  75.00% in 10.0492 secs\n  90.00% in 13.5796 secs\n  95.00% in 14.5463 secs\n  99.00% in 15.3866 secs\n  99.90% in 15.5029 secs\n  99.99% in 15.6153 secs\n\n\nDetails (average, fastest, slowest):\n  DNS+dialup:\t0.0002 secs, 0.0001 secs, 0.0005 secs\n  DNS-lookup:\t0.0000 secs, 0.0000 secs, 0.0001 secs\n\nStatus code distribution:\n  [200] 209062 responses\n\nError distribution:\n  [50] aborted due to deadline",
+    "throughput": 1742.5678,
+    "hit_rate": {
+      "home_timeline": "0.36",
+      "user_timeline": "0.76"
+    }
+  }
+}
