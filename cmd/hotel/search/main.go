@@ -36,7 +36,7 @@ func storeHotelLocation(ctx context.Context, req *hotel.StoreHotelLocationReques
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
 	//common.InitFlags()
-	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
 		go cm.ZmqProxy()
 	}
 	http.HandleFunc("/heartbeat", heartbeat)

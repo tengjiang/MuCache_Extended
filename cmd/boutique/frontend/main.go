@@ -8,6 +8,7 @@ import (
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
 	"runtime"
+	"flag"
 )
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
@@ -27,6 +28,10 @@ func home(ctx context.Context, req *boutique.HomeRequest) *boutique.HomeResponse
 //	resp := boutique.FrontendSetCurrencyResponse{OK: "OK"}
 //	return &resp
 //}
+func prefetchBrowseProduct(ctx context.Context, req *boutique.BrowseProductRequest) *boutique.BrowseProductResponse {
+	resp := boutique.PrefetchBrowseProduct(ctx, req.ProductId)
+	return &resp
+}
 
 func browseProduct(ctx context.Context, req *boutique.BrowseProductRequest) *boutique.BrowseProductResponse {
 	resp := boutique.BrowseProduct(ctx, req.ProductId)
@@ -49,14 +54,22 @@ func checkout(ctx context.Context, request *boutique.CheckoutRequest) *boutique.
 }
 
 func main() {
+	prefetch := flag.Bool("prefetch", false, "Flag to enable prefetching")
+	flag.Parse()
+
+	fmt.Println( "Prefetch flag is ", *prefetch )
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
 		go cm.ZmqProxy()
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_home", wrappers.ROWrapper[boutique.HomeRequest, boutique.HomeResponse](home))
 	//http.HandleFunc("/set_currency", wrappers.NonROWrapper[boutique.FrontendSetCurrencyRequest, boutique.FrontendSetCurrencyResponse](setCurrency))
-	http.HandleFunc("/ro_browse_product", wrappers.ROWrapper[boutique.BrowseProductRequest, boutique.BrowseProductResponse](browseProduct))
+	if *prefetch {
+		http.HandleFunc("/ro_browse_product", wrappers.ROWrapper[boutique.BrowseProductRequest, boutique.BrowseProductResponse](prefetchBrowseProduct))
+	} else {
+		http.HandleFunc("/ro_browse_product", wrappers.ROWrapper[boutique.BrowseProductRequest, boutique.BrowseProductResponse](browseProduct))
+	}
 	//http.HandleFunc("/add_to_cart", wrappers.NonROWrapper[boutique.AddToCartRequest, boutique.AddToCartResponse](addToCart))
 	http.HandleFunc("/ro_view_cart", wrappers.ROWrapper[boutique.ViewCartRequest, boutique.ViewCartResponse](viewCart))
 	http.HandleFunc("/checkout", wrappers.ROWrapper[boutique.CheckoutRequest, boutique.CheckoutResponse](checkout))

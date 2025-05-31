@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"runtime"
 	"time"
-	"flag"
+	//"flag"
 	//_ "net/http/pprof"
 )
 
@@ -43,14 +43,14 @@ func write(ctx context.Context, req *twoserivces.WriteRequest) *string {
 }
 
 func main() {
-	flag.Set("logtostderr", "true")         // Ensure glog logs go to stderr
-	flag.Set("stderrthreshold", "INFO")     // Change to "ERROR" if you want only errors
-	flag.Parse()
+	// flag.Set("logtostderr", "true")         // Ensure glog logs go to stderr
+	// flag.Set("stderrthreshold", "INFO")     // Change to "ERROR" if you want only errors
+	// flag.Parse()
 
 	prev := runtime.GOMAXPROCS(MaxProcs)
 	fmt.Printf("Set GOMAXPROCS to %d (was %d before)\n", MaxProcs, prev)
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
 		go cm.ZmqProxy()
 	}
 

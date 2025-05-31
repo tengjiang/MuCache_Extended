@@ -45,7 +45,7 @@ func hitormiss(ctx context.Context, req *twoserivces.HitOrMissRequest) *string {
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
 		go cm.ZmqProxy()
 	}
 	http.HandleFunc("/heartbeat", heartbeat)

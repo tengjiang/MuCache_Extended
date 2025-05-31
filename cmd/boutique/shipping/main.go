@@ -31,7 +31,7 @@ func shipOrder(ctx context.Context, req *boutique.ShipOrderRequest) *boutique.Sh
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 4; i++ {  // Adjust worker count based on experiments
+	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
 		go cm.ZmqProxy()
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
