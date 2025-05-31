@@ -15,7 +15,9 @@ def run_collect_output(cmd):
 
 
 def run_in_bg(cmd: str, wd: str):
-    return subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    log_path = os.path.join(project_path(), wd, "proxy.log")
+    log_file = open(log_path, "w")
+    return subprocess.Popen(cmd.split(), stdout=log_file, stderr=subprocess.STDOUT,
                             cwd=os.path.join(project_path(), wd))
 
 

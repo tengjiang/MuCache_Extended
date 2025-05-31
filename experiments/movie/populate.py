@@ -89,6 +89,7 @@ def parse_arguments():
 
 
 def upload_movie_info(movie):
+    # print( "Upload movie", movie['id'] )
     global IPS
     url = utility.compose_url(IPS, "movie_info", 'store_movie_info')
     data = {
@@ -98,23 +99,44 @@ def upload_movie_info(movie):
         'plot_id': str(movie['id'])
     }
     # print(data)
-    r = requests.post(url, json=data)
-    assert (r.status_code == 200)
+    for attempt in range(5):
+        try:
+            r = requests.post(url, json=data)
+            break
+        except requests.RequestException as e:
+            print( "Failed attempt:", attempt )
+            time.sleep( attempt )
+    if( r.status_code == 200 ):
+        return
+    else:
+        print(f"[ERROR] Movie {data['movie_id']} failed")
+        assert (r.status_code == 200)
 
 
 def register_movie_id(movie):
+    # print( "register movie", movie["id"])
     global IPS
     url = utility.compose_url(IPS, 'movie_id', 'register_movie_id')
     data = {
         'title': movie['title'],
         'movie_id': str(movie['id']),
     }
-    # print(data)
-    r = requests.post(url, json=data)
-    assert (r.status_code == 200)
+    for attempt in range(5):
+        try:
+            r = requests.post(url, json=data)
+            break
+        except requests.RequestException as e:
+            print( "Failed attempt:", attempt )
+            time.sleep( attempt )
+    if( r.status_code == 200 ):
+        return
+    else:
+        print(f"[ERROR] Movie {data['movie_id']} failed")
+        assert (r.status_code == 200)
 
 
 def write_plot(movie):
+    # print( "writing plot", movie['id'] )
     global IPS
     url = utility.compose_url(IPS, 'plot', 'write_plot')
     data = {
@@ -122,11 +144,22 @@ def write_plot(movie):
         'plot': (movie['overview'] * 10),
     }
     # print(data)
-    r = requests.post(url, json=data)
-    assert (r.status_code == 200)
+    for attempt in range(5):
+        try:
+            r = requests.post(url, json=data)
+            break
+        except requests.RequestException as e:
+            print( "Failed attempt:", attempt )
+            time.sleep( attempt )
+    if( r.status_code == 200 ):
+        return
+    else:
+        print(f"[ERROR] Movie {data['plot_id']} failed")
+        assert (r.status_code == 200)
 
 
 def upload_cast_info(cast):
+    # print( "uploading cast", cast['id'] )
     global IPS
     url = utility.compose_url(IPS, "cast_info", 'store_cast_info')
     data = {
@@ -135,20 +168,44 @@ def upload_cast_info(cast):
         'info': cast['biography']
     }
     # print(data['cast_id'])
-    r = requests.post(url, json=data)
-    assert (r.status_code == 200)
+    for attempt in range(5):
+        try:
+            r = requests.post(url, json=data)
+            break
+        except requests.RequestException as e:
+            print( "Failed attempt:", attempt )
+            time.sleep( attempt )
+    if( r.status_code == 200 ):
+        return
+    else:
+        print(f"[ERROR] Cast {data['cast_id']} failed")
+        assert (r.status_code == 200)
 
 
 def upload_user(user_index):
+    # print( "uploading user", user_index )
     url = utility.compose_url(IPS, 'user', 'register_user')
     data = {
         "username": f'username{user_index}',
         "password": f'password{user_index}'
     }
-    r = requests.post(url, json=data)
-    assert (r.status_code == 200)
-    r_ok = r.json()['ok']
-    assert (r_ok == True)
+    for attempt in range(5):
+        try:
+            r = requests.post(url, json=data)
+            break
+        except requests.RequestException as e:
+            print( "Failed attempt:", attempt )
+            time.sleep( attempt )
+    if( r.status_code == 200 ):
+        r_ok = r.json()['ok']
+        assert (r_ok == True)
+    else:
+        print(f"[ERROR] User {data['user_index']} failed")
+        assert (r.status_code == 200)
+    # r = requests.post(url, json=data)
+    # assert (r.status_code == 200)
+    # r_ok = r.json()['ok']
+    # assert (r_ok == True)
 
 
 def normalize_movie_ids_and_store_analysis(movies, users, casts, analysis_file):
@@ -176,7 +233,7 @@ def populate_everything(num_of_users, movies, cast):
     for i in range(num_of_users):
         upload_user(i)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
 
         bar = Bar('Populating movies', max=BAR_GRANULARITY)
         counter = 0

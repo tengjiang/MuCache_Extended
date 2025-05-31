@@ -9,6 +9,7 @@ import (
 	"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"github.com/goccy/go-json"
+	"github.com/golang/glog"
 )
 
 // GetState is Naive Wrapper around Dapr State API
@@ -44,7 +45,7 @@ func GetState[T interface{}](ctx context.Context, key string) (T, error) {
 	}
 	var value T
 	if len(item.Value) == 0 {
-		fmt.Printf( "Key Not Found: %v", key )
+		glog.Infof( "Key Not Found: %v", key )
 		return value, errors.New("key not found")
 	}
 	err = json.Unmarshal(item.Value, &value)

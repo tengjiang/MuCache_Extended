@@ -119,7 +119,7 @@ func PreCall(ctx context.Context, ca cm.CallArgs) (cm.ReturnVal, bool) {
 
 	start := time.Now()
 	ret, exists := cm.CacheGet(mc, ca)
-	glog.Infof("PreCall latency: %v", time.Since(start))
+	glog.Infof("PreCall latency: %v. PreCall exists: %v", time.Since(start), exists)
 	//if time.Since(start) > 1*time.Millisecond {
 	//	glog.Info("CacheGet took ", time.Since(start), ", ", runtime.NumGoroutine())
 	//}

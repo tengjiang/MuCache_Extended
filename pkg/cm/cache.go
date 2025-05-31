@@ -32,10 +32,13 @@ func CacheGet(c *redis.Client, ca CallArgs) (ReturnVal, bool) {
 	//fmt.Printf("Got from cache: %+v, %+v for ca: %+v\n", item, err, ca)
 	switch {
 	case err == redis.Nil:
+		glog.Infof("[MuCache Debug] CacheGet miss for key: %s", ca)
 		return "", false
 	case err != nil:
+		glog.Errorf("[MuCache Error] CacheGet error for key %s: %v", ca, err)
 		panic(err)
 	case err == nil:
+		glog.Infof("[MuCache Debug] CacheGet hit for key: %s => Value: %s", ca, item)
 		return ReturnVal(item), true
 	}
 	panic("unreachable")
@@ -115,8 +118,13 @@ func CacheSaveCalls(c *redis.Client, callArgsList []CallArgs, returnVals []Retur
 	for i, ca := range callArgsList {
 		callMap[string(ca)] = string(returnVals[i])
 	}
+	glog.Infof("[MuCache Debug] CacheSaveCalls writing %d items to Redis:", len(callMap))
+	for k, v := range callMap {
+		glog.Infof("[MuCache Debug]   Key: %s => Value: %s", k, v)
+	}
 	err := c.MSet(context.Background(), callMap).Err()
 	if err != nil {
+		glog.Errorf("[MuCache Error] Failed to write to Redis: %v", err)
 		panic(err)
 	}
 }
@@ -132,6 +140,7 @@ func CacheSaveCalls(c *redis.Client, callArgsList []CallArgs, returnVals []Retur
 
 func GetOrCreateCacheClient() *redis.Client {
 	if CacheClient == nil {
+		glog.Infof( "Creating new cache client" )
 		CacheClient = redis.NewClient(&redis.Options{
 			Addr: common.CachedUrl,
 		})
