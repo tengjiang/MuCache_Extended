@@ -68,9 +68,13 @@ Alternatively, you can build the images on any x86 machines and push to dockerhu
 ./scripts/cm/build_and_push=${docker_io_username} # cache manager image
 ```
 
-If you're using pre-built images, set on the controller node (for example, node0)
+If you're using MuCache's pre-built images, set on the controller node (for example, node0)
 ```bash
 export docker_io_username=tauta
+```
+If you want to utilize my personal pre-built images, set on the controller node (for example, node0)
+```bash
+export docker_io_username=fortemir
 ```
 
 Note: To modify and configure the benchmarks and cache code, you must build the images on DockerHub and use the correct docker_io_username to load the correct images.
@@ -121,3 +125,52 @@ To build the applications and cache manager for the sharding example, run
 ./scripts/host/shard_build_and_push=${docker_io_username} # application image
 ./scripts/cm/shard_build_and_push=${docker_io_username} # cache manager image
 ```
+
+## Additional Information
+Below are a few things to note when running these experiments smoothly or modifying the code.
+
+### Experiment Workflow
+When running an experiment script, it runs the experiment at varying requests per seconds (RPS). It will then output a json file in the main directory containing the latency distribution, throughput and cache hit-rate (if cache is used). These outputs are then used to graph the results seen in the MuCache paper and my paper.
+
+Further delving into the test script, each experiment iteration does the following in run_once():
+1. Call the clean() function, which uninstalls every pod (cache, cache manager, service, and redis) before reinstalling the cache and redis pods.
+2. Deploy services using scripts/deploy.sh.
+3. If data is needed, a populate script is called to populate the microservice with data
+4. A proxy server is started, which sends requests to the microservice
+5. We use oha (a CLI tool that measures latency) on the proxy server at the given RPS and get the results
+6. We parse the results and add in hit rate (if possible)
+7. Return results
+As we can see, the general experiment workflow has us send requests to the proxy server to then send requests to the microservice. And we measure the total latency from the proxy server.
+
+Most experiments (real-world benchmarks and fanin) utilize a proxy server while Chain and Star utilize a simulated cache hit/miss function. In addition, within my code, the experiment scripts have support for loading different workloads for the proxy server to send, prefetching, and batch invalidation.
+
+### Configurations to Pay Attention to
+One issue to deal with when running the experiments is to pay attention to resource consumption. There are two areas where resource consumption can become a bottleneck and mess with your results:
+- Configurations of the Docker images (**app.yaml**, cm.yaml, cache.yaml, and redis.yaml)
+- Configuration of the Proxy server (# of workers)
+
+To avoid having pods be starved of resources, you have to designate some resource consumption for each pod in their configuration file. Usually, the consumption of resources is ordered with the following: app >>> cm > cache > redis. As we can see, the app service pods require the most computation. Thus, to guarantee they always have resources, we add within the configuration file their CPU and resource allocation. Personally, in my experiments, I found setting the base CPU allocation to 5000mi with max 7000mi works well to prevent the services from bottlenecking. For cm, cache, redis, CPU allocations of 500-1000mi will do just fine. As for memory, it isn't a bottleneck so you could designate it to a sufficienctly high amount.
+
+Next, besides the pods themselves, we also need to account for the resource allocation of our controller node. Because we're sending thousands of requests per second using oha, we can quickly throttle our experiments if we don't have enough workers for the proxy server. Thus, within proxy/src/main.rs, we can set the max_workers parameter to a higher amount (10-12) to fully utilize our resources and prevent throttling.
+
+These were the main two causes of poor results for me. So keep a look out for these 2 if performance starts throttling. Also, app.yaml and cm.yaml can be found in the /deploy folder while cache.yaml and redis.yaml can be found in the /scripts/setup folder. 
+
+Though this is less important, the populate.py scripts found in some benchmarks can also stall. Thus, you can increase the number of workers and add a retry mechanic like I did to ensure populate.py doesn't stall half way.
+
+### General Codebase layout
+Here, we quickly explain what each folder in the MuCache codebase contains:
+- cmd: contains main.go files for each service that hooks up the ports and endpoints for the service. Also used to initialize the cache via a zmqproxy server for each service. I personally used this to hook up prefetching-specific functions to the endpoint
+- deploy: contains configuration files and Dockerfiles for the app services and cache managers. These are utilized whenever scripts/deploy.sh is called.
+- experiments: contains the main experiments and benchmarks used to evaluate MuCache. Each experiment has a run.py file to run the experiment along with additional code for supplementary things. One thing to note is that they all utilize /experiments/helper.py to call common functions such as deploy() and clean2(). So any modifications to setup/deployment should also be changed in helper.py.
+- internal: contains the internal code and logic for the app services.
+- pkg: contains the code for MuCache and its related components such as wrappers. Can customize or add additional logic to MuCache here.
+- playground: contains old legacy code to run scripts and tests. Unsure if it works. Not used in experiments.
+- proxy: contains all the code for the proxy server. Each experiment has its own rust file that dictates how requests are created and sent to the microservice. You can add new/modified workloads here like I did for prefetching and batched invalidation. However, make sure to import it into main.rs to have it work.
+- results: contains all the results obtained from MY experiments (original MuCache doesn't have this). Main folder to check is paper_results, which was used to generate the results for my paper.
+- scripts: contains the setup scripts to deploy everything from the Kubernetes cluster to the app service pods. When a script is called from experiments/helper.py, it is usually from this folder. Thus, when modifying MuCache, you should pay attention to the scripts folder as well
+- tests: contains small tests for the real-world app benchmarks. Didn't run for me.
+
+Overall, the main folders to consider when exploring MuCache is the cmd, deploy, experiments, proxy, scripts, internal, and pkg folders. As a side note, there is still a lot of legacy code within these folders, so make sure to see if you're analyzing the right thing.
+
+
+
