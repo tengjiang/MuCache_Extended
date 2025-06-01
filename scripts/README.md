@@ -159,16 +159,16 @@ Though this is less important, the populate.py scripts found in some benchmarks 
 
 ### General Codebase layout
 Here, we quickly explain what each folder in the MuCache codebase contains:
-- cmd: contains main.go files for each service that hooks up the ports and endpoints for the service. Also used to initialize the cache via a zmqproxy server for each service. I personally used this to hook up prefetching-specific functions to the endpoint
-- deploy: contains configuration files and Dockerfiles for the app services and cache managers. These are utilized whenever scripts/deploy.sh is called.
-- experiments: contains the main experiments and benchmarks used to evaluate MuCache. Each experiment has a run.py file to run the experiment along with additional code for supplementary things. One thing to note is that they all utilize /experiments/helper.py to call common functions such as deploy() and clean2(). So any modifications to setup/deployment should also be changed in helper.py.
-- internal: contains the internal code and logic for the app services.
-- pkg: contains the code for MuCache and its related components such as wrappers. Can customize or add additional logic to MuCache here.
-- playground: contains old legacy code to run scripts and tests. Unsure if it works. Not used in experiments.
-- proxy: contains all the code for the proxy server. Each experiment has its own rust file that dictates how requests are created and sent to the microservice. You can add new/modified workloads here like I did for prefetching and batched invalidation. However, make sure to import it into main.rs to have it work.
-- results: contains all the results obtained from MY experiments (original MuCache doesn't have this). Main folder to check is paper_results, which was used to generate the results for my paper.
-- scripts: contains the setup scripts to deploy everything from the Kubernetes cluster to the app service pods. When a script is called from experiments/helper.py, it is usually from this folder. Thus, when modifying MuCache, you should pay attention to the scripts folder as well
-- tests: contains small tests for the real-world app benchmarks. Didn't run for me.
+- **cmd**: contains main.go files for each service that hooks up the ports and endpoints for the service. Also used to initialize the cache via a zmqproxy server for each service. I personally used this to hook up prefetching-specific functions to the endpoint
+- **deploy**: contains configuration files and Dockerfiles for the app services and cache managers. These are utilized whenever scripts/deploy.sh is called.
+- **experiments**: contains the main experiments and benchmarks used to evaluate MuCache. Each experiment has a run.py file to run the experiment along with additional code for supplementary things. One thing to note is that they all utilize /experiments/helper.py to call common functions such as deploy() and clean2(). So any modifications to setup/deployment should also be changed in helper.py.
+- **internal**: contains the internal code and logic for the app services.
+- **pkg**: contains the code for MuCache and its related components such as wrappers. Can customize or add additional logic to MuCache here.
+- **playground**: contains old legacy code to run scripts and tests. Unsure if it works. Not used in experiments.
+- **proxy**: contains all the code for the proxy server. Each experiment has its own rust file that dictates how requests are created and sent to the microservice. You can add new/modified workloads here like I did for prefetching and batched invalidation. However, make sure to import it into main.rs to have it work.
+- **results**: contains all the results obtained from MY experiments (original MuCache doesn't have this). Main folder to check is paper_results, which was used to generate the results for my paper. Also contains some simple functions to convert the output files from experiments into a graph.
+- **scripts**: contains the setup scripts to deploy everything from the Kubernetes cluster to the app service pods. When a script is called from experiments/helper.py, it is usually from this folder. Thus, when modifying MuCache, you should pay attention to the scripts folder as well
+- **tests**: contains small tests for the real-world app benchmarks. Didn't run for me.
 
 Overall, the main folders to consider when exploring MuCache is the cmd, deploy, experiments, proxy, scripts, internal, and pkg folders. As a side note, there is still a lot of legacy code within these folders, so make sure to see if you're analyzing the right thing.
 
