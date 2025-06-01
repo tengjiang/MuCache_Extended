@@ -19,7 +19,7 @@ pip3 install fabric
 git clone https://github.com/DKW2/MuCache_Extended
 ```
 
-copy the minifest file to the mucache/
+copy the minifest file to the MuCache_Extended/
 
 ## Setup
 On the controller
@@ -30,7 +30,6 @@ export node_username=${username_of_cloudlab}
 export private_key=${ssh_key_location}
 python3 scripts/host/upload.py
 python3 scripts/host/setup.py
-python3 scripts/host/preload_images.py
 ```
 
 After it finishes, login into node-0 and you should see the following:
@@ -49,7 +48,7 @@ node-4   Ready    <none>          167m   v1.26.1
 node-5   Ready    <none>          167m   v1.26.1
 ...
 ```
-Lastly, we want to preload all the helm charts as well, so run the following within the controller node (node0)
+Lastly, we want to preload all the helm charts and images as well to avoid pulling them constantly, so run the following within the controller node (node0)
 ```bash
 cd MuCache_Extended
 helm pull oci://registry-1.docker.io/bitnamicharts/redis --version 20.12.0
@@ -73,6 +72,8 @@ If you're using pre-built images, set on the controller node (for example, node0
 ```bash
 export docker_io_username=tauta
 ```
+
+Note: To modify and configure the benchmarks and cache code, you must build the images on DockerHub and use the correct docker_io_username to load the correct images.
 
 ### Cache Size (Figure 13)
 ```bash
