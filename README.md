@@ -2,6 +2,8 @@
 
 This is a capstone project to analyze and look deeper into the microservice caching framework: MuCache. It focuses on reproducing the results of the paper (to confirm their findings) as well as explore how different caching strategies can affect the performance of the cache. This is inspired by the fact that the MuCache paper uses a simple key-value caching/invalidation strategy and did not explore any further. Thus, by exploring more advanced strategies, we can see how different caching strategies can affect the performance of microservices.
 
+In addition to this, there will be additional instructions and notes on the codebase in general to aid in reproducing results as well as understanding the experiments.
+
 The paper describing the entire MuCache framework and experiments is in this NSDI 2024 paper:
 [Mucache: a General Framework for Caching in Microservice Graphs](https://www.usenix.org/conference/nsdi24/presentation/zhang-haoran).
 
