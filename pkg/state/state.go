@@ -1,54 +1,50 @@
+// Direct Redis implementation replacing the original Dapr-based state API.
+// Uses github.com/redis/go-redis/v9 (already a dependency via pkg/cm/cache.go).
+
 package state
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	dapr "github.com/dapr/go-sdk/client"
+	"sync"
+
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"github.com/goccy/go-json"
 	"github.com/golang/glog"
+	redis "github.com/redis/go-redis/v9"
 )
 
-// GetState is Naive Wrapper around Dapr State API
-func GetState_deprecated(ctx context.Context, key string) []byte {
-	client, err := dapr.NewClient()
-	if err != nil {
-		panic(err)
-	}
-	// get store name from ctx
-	store := ctx.Value("store").(string)
-	item, err := client.GetState(ctx, store, key, nil)
-	if err != nil {
-		panic(err)
-	}
-	return item.Value
+var stateClient *redis.Client
+var stateClientOnce sync.Once
+
+func getStateClient() *redis.Client {
+	stateClientOnce.Do(func() {
+		stateClient = redis.NewClient(&redis.Options{
+			Addr: common.RedisUrl,
+		})
+	})
+	return stateClient
 }
 
 func GetState[T interface{}](ctx context.Context, key string) (T, error) {
 	if common.CMEnabled {
 		wrappers.PreRead(ctx, cm.Key(key))
 	}
-	client, err := dapr.NewClient()
-	if err != nil {
-		fmt.Printf( "Dapr fail: %v", key )
-		panic(err)
-	}
-	// get store name from ctx
-	//store := ctx.Value("store").(string)
-	item, err := client.GetState(ctx, common.RedisUrl, key, nil)
-	if err != nil {
-		fmt.Printf( "Store not found: %v", key )
-		panic(err)
-	}
+	rc := getStateClient()
+	val, err := rc.Get(ctx, key).Bytes()
 	var value T
-	if len(item.Value) == 0 {
-		glog.Infof( "Key Not Found: %v", key )
+	if err == redis.Nil {
+		glog.Infof("Key Not Found: %v", key)
 		return value, errors.New("key not found")
 	}
-	err = json.Unmarshal(item.Value, &value)
+	if err != nil {
+		fmt.Printf("Redis GetState error for key %v: %v\n", key, err)
+		panic(err)
+	}
+	err = json.Unmarshal(val, &value)
 	if err != nil {
 		panic(err)
 	}
@@ -61,83 +57,60 @@ func GetBulkState[T interface{}](ctx context.Context, keys []string) ([]T, error
 			wrappers.PreRead(ctx, cm.Key(key))
 		}
 	}
-	client, err := dapr.NewClient()
+	rc := getStateClient()
+	vals, err := rc.MGet(ctx, keys...).Result()
 	if err != nil {
 		panic(err)
 	}
-	items, err := client.GetBulkState(ctx, common.RedisUrl, keys, nil, 10)
-	if err != nil {
-		panic(err)
-	}
-	values := make(map[string]*T)
-	for _, item := range items {
-		var value T
-		if len(item.Value) == 0 {
-			return nil, errors.New(fmt.Sprintf("key %s not found", item.Key))
+	returnValues := make([]T, len(keys))
+	for i, v := range vals {
+		if v == nil {
+			return nil, errors.New(fmt.Sprintf("key %s not found", keys[i]))
 		}
-		err = json.Unmarshal(item.Value, &value)
+		var value T
+		err = json.Unmarshal([]byte(v.(string)), &value)
 		if err != nil {
 			panic(err)
 		}
-		values[item.Key] = &value
-	}
-	var returnValues []T
-	for _, key := range keys {
-		returnValues = append(returnValues, *values[key])
+		returnValues[i] = value
 	}
 	return returnValues, nil
 }
 
-// This is a copy of the one above but without panicing for empty keys
 func GetBulkStateDefault[T interface{}](ctx context.Context, keys []string, defVal T) []T {
 	if common.CMEnabled {
 		for _, key := range keys {
 			wrappers.PreRead(ctx, cm.Key(key))
 		}
 	}
-	client, err := dapr.NewClient()
+	rc := getStateClient()
+	vals, err := rc.MGet(ctx, keys...).Result()
 	if err != nil {
 		panic(err)
 	}
-	items, err := client.GetBulkState(ctx, common.RedisUrl, keys, nil, 10)
-	if err != nil {
-		panic(err)
-	}
-	values := make(map[string]*T)
-	for _, item := range items {
-		var value T
-		if len(item.Value) == 0 {
-			value = defVal
+	returnValues := make([]T, len(keys))
+	for i, v := range vals {
+		if v == nil {
+			returnValues[i] = defVal
 		} else {
-			err = json.Unmarshal(item.Value, &value)
+			var value T
+			err = json.Unmarshal([]byte(v.(string)), &value)
 			if err != nil {
 				panic(err)
 			}
+			returnValues[i] = value
 		}
-		values[item.Key] = &value
-	}
-	var returnValues []T
-	for _, key := range keys {
-		returnValues = append(returnValues, *values[key])
 	}
 	return returnValues
 }
 
 func SetState(ctx context.Context, key string, value interface{}) {
-	if common.CMEnabled {
-		// prewrite is not necessary
-		// wrappers.PreWrite(ctx, cm.Key(key))
-	}
 	valueBytes, err := json.Marshal(value)
 	if err != nil {
 		panic(err)
 	}
-	client, err := dapr.NewClient()
-	if err != nil {
-		panic(err)
-	}
-	//store := ctx.Value("store").(string)
-	err = client.SaveState(ctx, common.RedisUrl, key, valueBytes, nil)
+	rc := getStateClient()
+	err = rc.Set(ctx, key, valueBytes, 0).Err()
 	if err != nil {
 		panic(err)
 	}
@@ -147,29 +120,21 @@ func SetState(ctx context.Context, key string, value interface{}) {
 }
 
 func SetBulkState(ctx context.Context, kvs map[string]interface{}) {
-	items := make([]*dapr.SetStateItem, len(kvs))
-	i := 0
+	rc := getStateClient()
+	pipe := rc.Pipeline()
 	for k, v := range kvs {
 		valueBytes, err := json.Marshal(v)
 		if err != nil {
 			panic(err)
 		}
-		items[i] = &dapr.SetStateItem{
-			Key:   k,
-			Value: valueBytes,
-		}
-		i++
+		pipe.Set(ctx, k, valueBytes, 0)
 	}
-	client, err := dapr.NewClient()
-	if err != nil {
-		panic(err)
-	}
-	err = client.SaveBulkState(ctx, common.RedisUrl, items...)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	if common.CMEnabled {
-		for k, _ := range kvs {
+		for k := range kvs {
 			wrappers.PostWrite(ctx, cm.Key(k))
 		}
 	}

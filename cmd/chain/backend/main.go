@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/state"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"github.com/golang/glog"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
 	//"flag"
@@ -49,22 +49,15 @@ func main() {
 
 	prev := runtime.GOMAXPROCS(MaxProcs)
 	fmt.Printf("Set GOMAXPROCS to %d (was %d before)\n", MaxProcs, prev)
-	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3005"
 	}
-
-	// fmt.Println("Starting pprof server on :6060")
-    // err2 := http.ListenAndServe("localhost:6060", nil)
-    // if err2 != nil {
-    //     panic(err2)
-    // }
-
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_read", wrappers.ROWrapper[twoserivces.ReadRequest, twoserivces.ReadResponse](read))
 	http.HandleFunc("/write", wrappers.NonROWrapper[twoserivces.WriteRequest, string](write))
-
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("backend listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

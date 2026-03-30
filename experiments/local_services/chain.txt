@@ -1,0 +1,4 @@
+service2 http://localhost:3002
+service3 http://localhost:3003
+service4 http://localhost:3004
+backend http://localhost:3005

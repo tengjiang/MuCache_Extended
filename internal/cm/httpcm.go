@@ -60,15 +60,16 @@ func saveCallHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func ServeHttp(cfg *Config) {
+	mux := http.NewServeMux()
 	if !common.ZMQ {
-		http.HandleFunc(cm.HttpStartSuffix, startHandler)
-		http.HandleFunc(cm.HttpEndSuffix, endHandler)
-		//http.HandleFunc(cm.HttpInvSuffix, invHandler)
+		mux.HandleFunc(cm.HttpStartSuffix, startHandler)
+		mux.HandleFunc(cm.HttpEndSuffix, endHandler)
 	}
-	http.HandleFunc(cm.HttpInvSuffix, invHandler)
-	http.HandleFunc(cm.HttpInvCallsSuffix, invCallsHandler)
-	http.HandleFunc(cm.HttpSaveCallsSuffix, saveCallHandler)
+	mux.HandleFunc(cm.HttpInvSuffix, invHandler)
+	mux.HandleFunc(cm.HttpInvCallsSuffix, invCallsHandler)
+	mux.HandleFunc(cm.HttpSaveCallsSuffix, saveCallHandler)
 
-	glog.Info("Listening to port: 80")
-	panic(http.ListenAndServe(fmt.Sprintf(":%d", 80), nil))
+	addr := fmt.Sprintf(":%d", cfg.port)
+	glog.Infof("CM listening on %s", addr)
+	panic(http.ListenAndServe(addr, mux))
 }

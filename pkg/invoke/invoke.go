@@ -1,6 +1,7 @@
 package invoke
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -16,10 +17,55 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
 var daprPort = os.Getenv("DAPR_HTTP_PORT")
+
+// serviceURLs maps service name → base URL (e.g. "service2" → "http://localhost:3002")
+// Loaded once from SERVICE_URLS_FILE env var (same format as CM address file).
+var serviceURLs map[string]string
+var serviceURLsOnce sync.Once
+
+func getServiceURLs() map[string]string {
+	serviceURLsOnce.Do(func() {
+		serviceURLs = make(map[string]string)
+		path := os.Getenv("SERVICE_URLS_FILE")
+		if path == "" {
+			return
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			panic(fmt.Sprintf("SERVICE_URLS_FILE: %v", err))
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) == 2 {
+				serviceURLs[parts[0]] = parts[1]
+			}
+		}
+	})
+	return serviceURLs
+}
+
+// resolveServiceURL returns the base URL for a given service name.
+// If SERVICE_URLS_FILE is set, uses the file registry; otherwise falls back to Dapr.
+func resolveServiceURL(app string, method string) string {
+	urls := getServiceURLs()
+	if base, ok := urls[app]; ok {
+		return fmt.Sprintf("%s/%s", base, method)
+	}
+	// Dapr fallback (original behaviour)
+	return fmt.Sprintf("http://localhost:%s/%s", daprPort, method)
+}
 
 type SaveArgs struct {
 	Ca     cm.CallArgs
@@ -218,7 +264,7 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 		}
 		return res
 	}
-	url := fmt.Sprintf("http://localhost:%s/%s", daprPort, method)
+	url := resolveServiceURL(app, method)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(buf))
 	if err != nil {
 		panic(err)
@@ -342,7 +388,7 @@ func InvokeMissVal[T interface{}](ctx context.Context, app string, method string
 		ca := cm.CallArgs(wrappers.HashCallArgs(app, method, buf))
 		wrappers.PreCall(ctx, ca) // ignore the return value
 	}
-	url := fmt.Sprintf("http://localhost:%s/%s", daprPort, method)
+	url := resolveServiceURL(app, method)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(buf))
 	if err != nil {
 		panic(err)

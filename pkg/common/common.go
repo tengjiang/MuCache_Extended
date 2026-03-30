@@ -11,7 +11,7 @@ import (
 // Clients and Transports are safe for concurrent use by multiple goroutines
 // and for efficiency should only be created once and re-used.
 
-const ZMQ = true
+const ZMQ = false
 
 var ExpirationTTLms = os.Getenv("EXPIRATION_TTL")
 
