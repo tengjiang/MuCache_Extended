@@ -9,3 +9,15 @@ target
 manifest.xml
 
 env.sh
+
+# Build artifacts
+bin/
+main
+service1
+
+# Logs
+logs/
+
+# OS
+.DS_Store
+*.swp
