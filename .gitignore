@@ -12,8 +12,8 @@ env.sh
 
 # Build artifacts
 bin/
-main
-service1
+/main
+/service1
 
 # Logs
 logs/

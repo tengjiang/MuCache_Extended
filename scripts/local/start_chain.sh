@@ -1,30 +1,28 @@
 #!/bin/bash
-# Start the chain benchmark locally (no Kubernetes, no Dapr, no ZMQ).
+# Start the chain benchmark locally.
 #
 # Topology:
 #   client → service1:3001 → service2:3002 → service3:3003 → service4:3004 → backend:3005
-#                ↓                ↓                ↓                ↓               ↓
-#             CM1:9001         CM2:9002         CM3:9003         CM4:9004        CM5:9005
-#                              (all share Redis at localhost:6379)
+#   (inter-service: HTTP in nocm mode, flame shm in flame mode)
+#   backend reads/writes Redis at localhost:6379
 #
 # Usage:
-#   ./scripts/local/start_chain.sh          # start with MuCache CM enabled
-#   ./scripts/local/start_chain.sh nocm     # start without CM (baseline)
+#   ./scripts/local/start_chain.sh              # HTTP service-to-service (baseline)
+#   ./scripts/local/start_chain.sh nocm         # same as above (explicit)
+#   ./scripts/local/start_chain.sh flame        # flame shm service-to-service
 
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BIN="$REPO_ROOT/bin"
 LOGS="$REPO_ROOT/logs/chain"
-CM_ADDR_FILE="$REPO_ROOT/experiments/local_cm/chain.txt"
 SVC_URL_FILE="$REPO_ROOT/experiments/local_services/chain.txt"
+FLAME_BIN="/mydata/flame-benchmark/bin/flame_daemon"
+FLAME_READY_DIR="/tmp/flame_ready"
 
-WITH_CM=true
-if [[ "${1:-}" == "nocm" ]]; then
-    WITH_CM=false
-fi
+MODE="${1:-nocm}"   # nocm | flame
 
-mkdir -p "$LOGS"
+mkdir -p "$LOGS" "$FLAME_READY_DIR"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +32,7 @@ stop_chain() {
     log "Stopping all chain processes..."
     pkill -f "chain_service" 2>/dev/null || true
     pkill -f "chain_backend" 2>/dev/null || true
-    pkill -f "bin/cm "       2>/dev/null || true
+    pkill -f "flame_daemon"  2>/dev/null || true
     sleep 0.5
 }
 
@@ -51,54 +49,119 @@ wait_http() {
     exit 1
 }
 
-# ── clean up any previous run ──────────────────────────────────────────────────
-stop_chain
+wait_file() {
+    local path="$1" name="$2"
+    for i in $(seq 1 100); do
+        if [[ -f "$path" ]]; then
+            log "$name is ready"
+            return 0
+        fi
+        sleep 0.1
+    done
+    log "ERROR: $name ready-file $path not found in time"
+    exit 1
+}
 
-# ── Redis check ────────────────────────────────────────────────────────────────
+# ── clean up ───────────────────────────────────────────────────────────────────
+stop_chain
+rm -f "$FLAME_READY_DIR"/flame_*.ready
+rm -f /dev/shm/hop*   # clean up leftover shm regions
+
+# ── Redis ──────────────────────────────────────────────────────────────────────
 if ! redis-cli ping >/dev/null 2>&1; then
     log "Starting Redis..."
     redis-server --daemonize yes --logfile "$LOGS/redis.log"
     sleep 1
 fi
-redis-cli flushall >/dev/null  # clean state between runs
+redis-cli flushall >/dev/null
 log "Redis OK"
 
-# ── Start Cache Managers (one per service) ──────────────────────────────────────
-if $WITH_CM; then
-    log "Starting Cache Managers..."
-    for idx in 1 2 3 4 5; do
-        port=$((9000 + idx))
-        env NODE_IDX="$idx" REDIS_URL="localhost:6379" \
-            "$BIN/cm" -port "$port" -cm_adds "$CM_ADDR_FILE" \
-            > "$LOGS/cm${idx}.log" 2>&1 &
-        log "  CM${idx} (node_idx=$idx) → :${port}"
+# ── flame daemons (one per hop, each hop = req + resp channel) ─────────────────
+# hop1: service1 → service2
+# hop2: service2 → service3
+# hop3: service3 → service4
+# hop4: service4 → backend
+if [[ "$MODE" == "flame" ]]; then
+    log "Starting flame daemons (8 channels: 4 hops × req+resp)..."
+    for hop in hop1 hop2 hop3 hop4; do
+        for dir in req resp; do
+            ch="${hop}_${dir}"
+            ready_file="$FLAME_READY_DIR/flame_${ch}.ready"
+            "$FLAME_BIN" \
+                --channel-name "$ch" \
+                --msg-size 1024 \
+                --capacity 256 \
+                --ready-path "$ready_file" \
+                > "$LOGS/flame_daemon_${ch}.log" 2>&1 &
+        done
+        log "  daemons for $hop (req+resp)"
     done
-    sleep 1
+
+    # Wait for all 8 daemons
+    for hop in hop1 hop2 hop3 hop4; do
+        for dir in req resp; do
+            wait_file "$FLAME_READY_DIR/flame_${hop}_${dir}.ready" "daemon_${hop}_${dir}"
+        done
+    done
 fi
 
-# ── Start microservices ────────────────────────────────────────────────────────
-log "Starting microservices..."
+# ── binary suffix ──────────────────────────────────────────────────────────────
+SUFFIX="nocm"
+if [[ "$MODE" == "flame" ]]; then
+    SUFFIX="flame"
+fi
 
-SUFFIX=$($WITH_CM && echo "cm" || echo "nocm")
+# ── start microservices ────────────────────────────────────────────────────────
+log "Starting microservices (mode=$MODE)..."
 
-start_svc() {
-    local name=$1 svcbin=$2 port=$3 cm_port=$4
-    env PORT="$port" \
-        CM_URL="http://localhost:$cm_port" \
-        REDIS_URL="localhost:6379" \
-        SERVICE_URLS_FILE="$SVC_URL_FILE" \
-        APP_NAME_NO_UNDERSCORES="$name" \
-        "$svcbin" > "$LOGS/${name}.log" 2>&1 &
-    log "  $name → :${port}  (CM at :${cm_port}, binary: $(basename $svcbin))"
-}
+# service1: HTTP in from client, flame out to service2 (hop1)
+env PORT=3001 \
+    REDIS_URL="localhost:6379" \
+    SERVICE_URLS_FILE="$SVC_URL_FILE" \
+    APP_NAME_NO_UNDERSCORES="service1" \
+    FLAME_DOWNSTREAM="hop1" \
+    "$BIN/chain_service1_${SUFFIX}" > "$LOGS/service1.log" 2>&1 &
+log "  service1 → :3001  (downstream=hop1)"
 
-start_svc service1 "$BIN/chain_service1_${SUFFIX}" 3001 9001
-start_svc service2 "$BIN/chain_service2_${SUFFIX}" 3002 9002
-start_svc service3 "$BIN/chain_service3_${SUFFIX}" 3003 9003
-start_svc service4 "$BIN/chain_service4_${SUFFIX}" 3004 9004
-start_svc backend  "$BIN/chain_backend_${SUFFIX}"  3005 9005
+# service2: flame in from service1 (hop1), flame out to service3 (hop2)
+env PORT=3002 \
+    REDIS_URL="localhost:6379" \
+    SERVICE_URLS_FILE="$SVC_URL_FILE" \
+    APP_NAME_NO_UNDERSCORES="service2" \
+    FLAME_UPSTREAM="hop1" \
+    FLAME_DOWNSTREAM="hop2" \
+    "$BIN/chain_service2_${SUFFIX}" > "$LOGS/service2.log" 2>&1 &
+log "  service2 → :3002  (upstream=hop1, downstream=hop2)"
 
-# ── Wait for all services to be ready ─────────────────────────────────────────
+# service3: flame in from service2 (hop2), flame out to service4 (hop3)
+env PORT=3003 \
+    REDIS_URL="localhost:6379" \
+    SERVICE_URLS_FILE="$SVC_URL_FILE" \
+    APP_NAME_NO_UNDERSCORES="service3" \
+    FLAME_UPSTREAM="hop2" \
+    FLAME_DOWNSTREAM="hop3" \
+    "$BIN/chain_service3_${SUFFIX}" > "$LOGS/service3.log" 2>&1 &
+log "  service3 → :3003  (upstream=hop2, downstream=hop3)"
+
+# service4: flame in from service3 (hop3), flame out to backend (hop4)
+env PORT=3004 \
+    REDIS_URL="localhost:6379" \
+    SERVICE_URLS_FILE="$SVC_URL_FILE" \
+    APP_NAME_NO_UNDERSCORES="service4" \
+    FLAME_UPSTREAM="hop3" \
+    FLAME_DOWNSTREAM="hop4" \
+    "$BIN/chain_service4_${SUFFIX}" > "$LOGS/service4.log" 2>&1 &
+log "  service4 → :3004  (upstream=hop3, downstream=hop4)"
+
+# backend: flame in from service4 (hop4), no downstream (reads Redis)
+env PORT=3005 \
+    REDIS_URL="localhost:6379" \
+    APP_NAME_NO_UNDERSCORES="backend" \
+    FLAME_UPSTREAM="hop4" \
+    "$BIN/chain_backend_${SUFFIX}" > "$LOGS/backend.log" 2>&1 &
+log "  backend  → :3005  (upstream=hop4)"
+
+# ── wait for heartbeats ───────────────────────────────────────────────────────
 log "Waiting for services..."
 wait_http http://localhost:3001/heartbeat "service1"
 wait_http http://localhost:3002/heartbeat "service2"
@@ -107,15 +170,10 @@ wait_http http://localhost:3004/heartbeat "service4"
 wait_http http://localhost:3005/heartbeat "backend"
 
 log ""
-log "All services up! Chain benchmark ready."
+log "All services up! (mode=$MODE)"
 log ""
-log "Example requests:"
-log "  Read:    curl -s -X POST http://localhost:3001/ro_read      -H 'Content-Type: application/json' -d '{\"k\":1}'"
-log "  Write:   curl -s -X POST http://localhost:3001/write        -H 'Content-Type: application/json' -d '{\"k\":1,\"v\":42}'"
-log "  HitorMiss: curl -s -X POST http://localhost:3001/ro_hitormiss -H 'Content-Type: application/json' -d '{\"k\":1,\"hit_rate\":0.5}'"
+log "  curl -s -X POST http://localhost:3001/ro_read -H 'Content-Type: application/json' -d '{\"k\":1}'"
+log "  oha -n 5000 -c 50 -m POST -H 'Content-Type: application/json' -d '{\"k\":1}' http://localhost:3001/ro_read"
 log ""
-log "Load test (100 req/s for 5s):"
-log "  oha -n 500 -c 10 -m POST -H 'Content-Type: application/json' -d '{\"k\":1}' http://localhost:3001/ro_read"
-log ""
-log "Logs in: $LOGS/"
-log "Stop:    pkill -f chain_service; pkill -f chain_backend; pkill -f 'bin/cm '"
+log "Logs: $LOGS/"
+log "Stop: pkill -f chain_service; pkill -f chain_backend; pkill -f flame_daemon"

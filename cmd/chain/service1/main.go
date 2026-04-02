@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/loadcm"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
+	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"math/rand"
@@ -71,6 +72,7 @@ func main() {
 	// flag.Parse()
 	
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
+	cm.StartFlame() // no-op unless built with -tags flame
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3001"

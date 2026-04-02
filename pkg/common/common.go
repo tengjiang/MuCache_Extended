@@ -13,6 +13,10 @@ import (
 
 const ZMQ = false
 
+// FLAME switches wrapper→CM communication from HTTP to flame RPC (shared memory).
+// Enabled at compile time with -tags flame.
+// When true, each service expects a flame daemon pre-started for its channel.
+
 var ExpirationTTLms = os.Getenv("EXPIRATION_TTL")
 
 func init() {

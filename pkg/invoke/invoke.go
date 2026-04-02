@@ -255,6 +255,17 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 	if err != nil {
 		panic(err)
 	}
+
+	// ── flame path: bypass cache/CM, send via shm ──
+	if common.FLAME {
+		respBytes := flameInvoke(method, buf)
+		var res T
+		if err := json.Unmarshal(respBytes, &res); err != nil {
+			panic(err)
+		}
+		return res
+	}
+
 	value, hit := CheckCache(ctx, app, method, buf)
 	var res T
 	if hit {

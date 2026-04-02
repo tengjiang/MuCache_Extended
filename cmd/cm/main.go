@@ -17,9 +17,6 @@ func main() {
 	var batchCallInvalidation = flag.Bool("batch_call_invalidation", false,
 		"Enable or disable batched invalidation for cache")
 	flag.Parse()
-	//go func() {
-	//	glog.Info(http.ListenAndServe("localhost:9090", nil))
-	//}()
 
 	cfg := InitConfig(*Port, *cmAddressesPath, *printTimeFreq, *batchCallInvalidation)
 	defer cfg.Close()
@@ -29,12 +26,17 @@ func main() {
 	go Process(cfg, state)
 	go HttpSender(cfg)
 
-	if common.ZMQ {
-		// http servers are only used between cache managers
+	if common.FLAME {
+		// flame RPC handles start/end/inv from the wrapper; HTTP still handles
+		// CM→CM invalidations (/invcalls, /save).
+		ServeFlame(cfg)
+		go ServeHttp(cfg)
+		// Block forever (ServeFlame starts a goroutine, so we need to park here)
+		select {}
+	} else if common.ZMQ {
+		// HTTP servers are only used between cache managers
 		go ServeHttp(cfg)
 		Serve0mq(cfg)
-		// Alternative native go implementation which is a little faster
-		//Serve0mq2(cfg)
 	} else {
 		ServeHttp(cfg)
 	}

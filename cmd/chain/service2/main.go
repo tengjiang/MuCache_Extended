@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
+	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"math/rand"
@@ -43,8 +46,25 @@ func hitormiss(ctx context.Context, req *twoserivces.HitOrMissRequest) *string {
 	return &resp
 }
 
+// readFlame / writeFlame are context-free handlers for flame mode.
+func readFlame(req twoserivces.ReadRequest) twoserivces.ReadResponse {
+	return *read(context.Background(), &req)
+}
+func writeFlame(req twoserivces.WriteRequest) string {
+	return *write(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
+	cm.StartFlame() // no-op unless built with -tags flame
+
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_read": flame.WrapHandler(readFlame),
+			"write":   flame.WrapHandler(writeFlame),
+		})
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3002"

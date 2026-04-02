@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
+	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/state"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"github.com/golang/glog"
@@ -42,6 +45,14 @@ func write(ctx context.Context, req *twoserivces.WriteRequest) *string {
 	return &resp
 }
 
+// readFlame / writeFlame are context-free handlers for flame mode.
+func readFlame(req twoserivces.ReadRequest) twoserivces.ReadResponse {
+	return *read(context.Background(), &req)
+}
+func writeFlame(req twoserivces.WriteRequest) string {
+	return *write(context.Background(), &req)
+}
+
 func main() {
 	// flag.Set("logtostderr", "true")         // Ensure glog logs go to stderr
 	// flag.Set("stderrthreshold", "INFO")     // Change to "ERROR" if you want only errors
@@ -49,6 +60,15 @@ func main() {
 
 	prev := runtime.GOMAXPROCS(MaxProcs)
 	fmt.Printf("Set GOMAXPROCS to %d (was %d before)\n", MaxProcs, prev)
+	cm.StartFlame() // no-op unless built with -tags flame
+
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_read": flame.WrapHandler(readFlame),
+			"write":   flame.WrapHandler(writeFlame),
+		})
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3005"
