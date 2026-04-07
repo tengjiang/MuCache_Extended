@@ -7,37 +7,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
+	"strings"
 )
 
 // HandlerRegistry maps method names (e.g. "ro_read") to typed handler functions.
-// Each handler receives the raw JSON request body and returns the raw JSON response body.
 type HandlerRegistry map[string]func([]byte) []byte
 
-// StartServer creates and starts a flame RPC server on the upstream channel.
-// Does nothing if FLAME_UPSTREAM is empty (e.g. service1 which receives HTTP).
+// StartServer creates flame RPC servers on all upstream channels.
+// Reads from:
+//   - FLAME_UPSTREAM       — single channel name (chain benchmark)
+//   - FLAME_UPSTREAMS      — comma-separated channel names (fan-out benchmarks)
+// Does nothing if neither is set (e.g. service1 in chain which receives HTTP).
 func StartServer(handlers HandlerRegistry) {
-	name := os.Getenv("FLAME_UPSTREAM")
-	if name == "" {
-		return
-	}
-
-	_, err := NewRpcServer(name, func(method string, reqBody []byte) []byte {
+	dispatch := func(method string, reqBody []byte) []byte {
 		h, ok := handlers[method]
 		if !ok {
-			errMsg := fmt.Sprintf(`{"error":"unknown method: %s"}`, method)
-			return []byte(errMsg)
+			return []byte(fmt.Sprintf(`{"error":"unknown method: %s"}`, method))
 		}
 		return h(reqBody)
-	})
-	if err != nil {
-		panic(fmt.Sprintf("flame.StartServer(%q): %v", name, err))
 	}
-	fmt.Printf("[flame] server listening on channel %q\n", name)
+
+	var channels []string
+
+	if single := os.Getenv("FLAME_UPSTREAM"); single != "" {
+		channels = append(channels, single)
+	}
+
+	if multi := os.Getenv("FLAME_UPSTREAMS"); multi != "" {
+		for _, ch := range strings.Split(multi, ",") {
+			ch = strings.TrimSpace(ch)
+			if ch != "" {
+				channels = append(channels, ch)
+			}
+		}
+	}
+
+	for _, ch := range channels {
+		_, err := NewRpcServer(ch, dispatch)
+		if err != nil {
+			panic(fmt.Sprintf("flame.StartServer(%q): %v", ch, err))
+		}
+		fmt.Printf("[flame] server listening on channel %q\n", ch)
+	}
 }
 
 // WrapHandler creates a handler func from typed Go handler + types.
-// This avoids duplicating json marshal/unmarshal logic in every service.
 func WrapHandler[Req any, Resp any](handler func(Req) Resp) func([]byte) []byte {
 	return func(body []byte) []byte {
 		var req Req
@@ -51,11 +65,4 @@ func WrapHandler[Req any, Resp any](handler func(Req) Resp) func([]byte) []byte 
 		}
 		return out
 	}
-}
-
-// WaitForever blocks the calling goroutine. Use after StartServer to keep main alive.
-var waitForeverOnce sync.Once
-
-func WaitForever() {
-	select {}
 }

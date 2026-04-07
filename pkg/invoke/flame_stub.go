@@ -3,6 +3,6 @@
 
 package invoke
 
-func flameInvoke(method string, body []byte) []byte {
+func flameInvoke(app string, method string, body []byte) []byte {
 	panic("flameInvoke called without flame build tag")
 }

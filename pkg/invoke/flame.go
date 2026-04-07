@@ -4,44 +4,87 @@
 package invoke
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/DKW2/MuCache_Extended/pkg/flame"
 )
 
-// flameClient is the global RPC client for the downstream service.
-// Created lazily on first call.
+// flameClients maps service name → RpcClient.
+// Built lazily from FLAME_CHANNELS_FILE (format: "appname channelname" per line).
 var (
-	flameClient     *flame.RpcClient
-	flameClientOnce sync.Once
+	flameClients     map[string]*flame.RpcClient
+	flameClientsOnce sync.Once
 )
 
-func getFlameClient() *flame.RpcClient {
-	flameClientOnce.Do(func() {
-		name := os.Getenv("FLAME_DOWNSTREAM")
-		if name == "" {
-			return // no downstream (e.g., backend)
+func getFlameClients() map[string]*flame.RpcClient {
+	flameClientsOnce.Do(func() {
+		flameClients = make(map[string]*flame.RpcClient)
+
+		// Legacy single-downstream (chain benchmark)
+		if single := os.Getenv("FLAME_DOWNSTREAM"); single != "" {
+			callee := os.Getenv("FLAME_DOWNSTREAM_APP")
+			if callee == "" {
+				callee = "_default"
+			}
+			c, err := flame.NewRpcClient(single)
+			if err != nil {
+				panic(fmt.Sprintf("flame RpcClient(%q): %v", single, err))
+			}
+			flameClients[callee] = c
 		}
-		var err error
-		flameClient, err = flame.NewRpcClient(name)
+
+		// Multi-downstream (hotel, social)
+		path := os.Getenv("FLAME_CHANNELS_FILE")
+		if path == "" {
+			return
+		}
+		f, err := os.Open(path)
 		if err != nil {
-			panic(fmt.Sprintf("flame RpcClient(%q): %v", name, err))
+			panic(fmt.Sprintf("FLAME_CHANNELS_FILE: %v", err))
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			app := strings.TrimSpace(parts[0])
+			channel := strings.TrimSpace(parts[1])
+			if _, exists := flameClients[app]; exists {
+				continue // already registered (e.g. from FLAME_DOWNSTREAM)
+			}
+			c, err := flame.NewRpcClient(channel)
+			if err != nil {
+				panic(fmt.Sprintf("flame RpcClient(%q→%q): %v", app, channel, err))
+			}
+			flameClients[app] = c
 		}
 	})
-	return flameClient
+	return flameClients
 }
 
 // flameInvoke sends the request over shared memory and returns the raw response bytes.
-func flameInvoke(method string, body []byte) []byte {
-	c := getFlameClient()
+func flameInvoke(app string, method string, body []byte) []byte {
+	clients := getFlameClients()
+	c := clients[app]
 	if c == nil {
-		panic("flameInvoke: no FLAME_DOWNSTREAM configured")
+		c = clients["_default"]
+	}
+	if c == nil {
+		panic(fmt.Sprintf("flameInvoke: no flame channel for app %q", app))
 	}
 	resp, err := c.Call(method, body)
 	if err != nil {
-		panic(fmt.Sprintf("flameInvoke: %v", err))
+		panic(fmt.Sprintf("flameInvoke(%s/%s): %v", app, method, err))
 	}
 	return resp
 }
