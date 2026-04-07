@@ -90,7 +90,7 @@ if [[ "$MODE" == "flame" ]]; then
             ready_file="$FLAME_READY_DIR/flame_${ch}.ready"
             "$FLAME_BIN" \
                 --channel-name "$ch" \
-                --msg-size 1024 \
+                --msg-size 2048 \
                 --capacity 256 \
                 --ready-path "$ready_file" \
                 > "$LOGS/flame_daemon_${ch}.log" 2>&1 &

@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
-	//"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -39,11 +40,31 @@ func addHotelAvailability(ctx context.Context, req *hotel.AddHotelAvailabilityRe
 	return &resp
 }
 
+func checkAvailabilityFlame(req hotel.CheckAvailabilityRequest) hotel.CheckAvailabilityResponse {
+	return *checkAvailability(context.Background(), &req)
+}
+
+func makeReservationFlame(req hotel.MakeReservationRequest) hotel.MakeReservationResponse {
+	return *makeReservation(context.Background(), &req)
+}
+
+func addHotelAvailabilityFlame(req hotel.AddHotelAvailabilityRequest) hotel.AddHotelAvailabilityResponse {
+	return *addHotelAvailability(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	//common.InitFlags()
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_check_availability":  flame.WrapHandler(checkAvailabilityFlame),
+			"make_reservation":       flame.WrapHandler(makeReservationFlame),
+			"add_hotel_availability": flame.WrapHandler(addHotelAvailabilityFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4004"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	// Note: Even though checkAvailability is ReadOnly, the developers could explicitly decide to not have it be cached,
@@ -53,7 +74,8 @@ func main() {
 	http.HandleFunc("/ro_check_availability", wrappers.ROWrapper[hotel.CheckAvailabilityRequest, hotel.CheckAvailabilityResponse](checkAvailability))
 	http.HandleFunc("/make_reservation", wrappers.NonROWrapper[hotel.MakeReservationRequest, hotel.MakeReservationResponse](makeReservation))
 	http.HandleFunc("/add_hotel_availability", wrappers.NonROWrapper[hotel.AddHotelAvailabilityRequest, hotel.AddHotelAvailabilityResponse](addHotelAvailability))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("reservation listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
-	//"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -33,16 +34,32 @@ func getRates(ctx context.Context, req *hotel.GetRatesRequest) *hotel.GetRatesRe
 	return &resp
 }
 
+func getRatesFlame(req hotel.GetRatesRequest) hotel.GetRatesResponse {
+	return *getRates(context.Background(), &req)
+}
+
+func storeRateFlame(req hotel.StoreRateRequest) hotel.StoreRateResponse {
+	return *storeRate(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	//common.InitFlags()
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_get_rates": flame.WrapHandler(getRatesFlame),
+			"store_rate":   flame.WrapHandler(storeRateFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4002"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_rate", wrappers.NonROWrapper[hotel.StoreRateRequest, hotel.StoreRateResponse](storeRate))
 	http.HandleFunc("/ro_get_rates", wrappers.ROWrapper[hotel.GetRatesRequest, hotel.GetRatesResponse](getRates))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("rate listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

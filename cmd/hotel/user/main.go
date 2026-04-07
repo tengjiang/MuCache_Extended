@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
-	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -32,16 +33,32 @@ func login(ctx context.Context, req *hotel.LoginRequest) *hotel.LoginResponse {
 	return &resp
 }
 
+func registerUserFlame(req hotel.RegisterUserRequest) hotel.RegisterUserResponse {
+	return *registerUser(context.Background(), &req)
+}
+
+func loginFlame(req hotel.LoginRequest) hotel.LoginResponse {
+	return *login(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	//common.InitFlags()
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"register_user": flame.WrapHandler(registerUserFlame),
+			"login":         flame.WrapHandler(loginFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4005"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/register_user", wrappers.NonROWrapper[hotel.RegisterUserRequest, hotel.RegisterUserResponse](registerUser))
 	http.HandleFunc("/login", wrappers.NonROWrapper[hotel.LoginRequest, hotel.LoginResponse](login))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("user listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

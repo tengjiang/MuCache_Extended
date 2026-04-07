@@ -5,8 +5,10 @@ import (
 	"github.com/DKW2/MuCache_Extended/pkg/state"
 )
 
+const profilePrefix = "profile:"
+
 func StoreProfile(ctx context.Context, profile HotelProfile) string {
-	state.SetState(ctx, profile.HotelId, profile)
+	state.SetState(ctx, profilePrefix+profile.HotelId, profile)
 	return profile.HotelId
 }
 
@@ -24,7 +26,11 @@ func GetProfiles(ctx context.Context, hotelIds []string) []HotelProfile {
 	// Bulk
 	var profiles []HotelProfile
 	if len(hotelIds) > 0 {
-		profiles = state.GetBulkStateDefault[HotelProfile](ctx, hotelIds, HotelProfile{})
+		prefixed := make([]string, len(hotelIds))
+		for i, id := range hotelIds {
+			prefixed[i] = profilePrefix + id
+		}
+		profiles = state.GetBulkStateDefault[HotelProfile](ctx, prefixed, HotelProfile{})
 	} else {
 		profiles = make([]HotelProfile, len(hotelIds))
 	}

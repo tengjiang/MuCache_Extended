@@ -28,11 +28,13 @@ func checkAvailability(availability HotelAvailability, inDate string, outDate st
 	return reservationsTheseDays+numberOfRooms <= capacity
 }
 
+const reservationPrefix = "reservation:"
+
 func CheckAvailability(ctx context.Context, customerName string, hotelIds []string, inDate string, outDate string, numberOfRooms int) []string {
 	// Get all reservations for that hotel
 	availableHotelIds := []string{}
 	for _, hotelId := range hotelIds {
-		availability, err := state.GetState[HotelAvailability](ctx, hotelId)
+		availability, err := state.GetState[HotelAvailability](ctx, reservationPrefix+hotelId)
 		if err != nil {
 			panic(err)
 		}
@@ -47,7 +49,7 @@ func CheckAvailability(ctx context.Context, customerName string, hotelIds []stri
 }
 
 func MakeReservation(ctx context.Context, customerName string, hotelId string, inDate string, outDate string, numberOfRooms int) bool {
-	availability, err := state.GetState[HotelAvailability](ctx, hotelId)
+	availability, err := state.GetState[HotelAvailability](ctx, reservationPrefix+hotelId)
 	if err != nil {
 		panic(err)
 	}
@@ -56,8 +58,6 @@ func MakeReservation(ctx context.Context, customerName string, hotelId string, i
 		return false
 	}
 
-	// Note: When we make a reservation, make sure that there are at most 10 reservations
-	//       for the hotel so that we get predictable latency when fetching the state.
 	if len(availability.Reservations) >= 10 {
 		availability.Reservations = availability.Reservations[1:]
 	}
@@ -69,11 +69,11 @@ func MakeReservation(ctx context.Context, customerName string, hotelId string, i
 		RoomNumber:   numberOfRooms,
 	}
 	availability.Reservations = append(availability.Reservations, newReservation)
-	state.SetState(ctx, hotelId, availability)
+	state.SetState(ctx, reservationPrefix+hotelId, availability)
 	return true
 }
 
 func AddHotelAvailability(ctx context.Context, hotelId string, capacity int) string {
-	state.SetState(ctx, hotelId, HotelAvailability{Reservations: []Reservation{}, Capacity: capacity})
+	state.SetState(ctx, reservationPrefix+hotelId, HotelAvailability{Reservations: []Reservation{}, Capacity: capacity})
 	return hotelId
 }

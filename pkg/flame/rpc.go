@@ -8,7 +8,8 @@ import (
 )
 
 // RpcMsgSize is the fixed frame size for request/response messages.
-const RpcMsgSize = 1024
+// Must be large enough for the biggest JSON response (hotel search ~1.2KB).
+const RpcMsgSize = 2048
 
 // Layout (1024 bytes):
 //   [0:4]     uint32  correlation_id

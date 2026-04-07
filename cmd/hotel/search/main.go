@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
-	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -33,16 +34,32 @@ func storeHotelLocation(ctx context.Context, req *hotel.StoreHotelLocationReques
 	return &resp
 }
 
+func nearbyFlame(req hotel.NearbyRequest) hotel.NearbyResponse {
+	return *nearby(context.Background(), &req)
+}
+
+func storeHotelLocationFlame(req hotel.StoreHotelLocationRequest) hotel.StoreHotelLocationResponse {
+	return *storeHotelLocation(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	//common.InitFlags()
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_nearby":            flame.WrapHandler(nearbyFlame),
+			"store_hotel_location": flame.WrapHandler(storeHotelLocationFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4001"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_nearby", wrappers.ROWrapper[hotel.NearbyRequest, hotel.NearbyResponse](nearby))
 	http.HandleFunc("/store_hotel_location", wrappers.NonROWrapper[hotel.StoreHotelLocationRequest, hotel.StoreHotelLocationResponse](storeHotelLocation))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("search listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

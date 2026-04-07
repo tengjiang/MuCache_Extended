@@ -1,0 +1,5 @@
+search http://localhost:4001
+rate http://localhost:4002
+profile http://localhost:4003
+reservation http://localhost:4004
+user http://localhost:4005

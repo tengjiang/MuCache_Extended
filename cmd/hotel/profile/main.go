@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/hotel"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
-	//"github.com/DKW2/MuCache_Extended/pkg/common"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -33,16 +34,32 @@ func getProfiles(ctx context.Context, req *hotel.GetProfilesRequest) *hotel.GetP
 	return &resp
 }
 
+func getProfilesFlame(req hotel.GetProfilesRequest) hotel.GetProfilesResponse {
+	return *getProfiles(context.Background(), &req)
+}
+
+func storeProfileFlame(req hotel.StoreProfileRequest) hotel.StoreProfileResponse {
+	return *storeProfile(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	//common.InitFlags()
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_get_profiles": flame.WrapHandler(getProfilesFlame),
+			"store_profile":   flame.WrapHandler(storeProfileFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4003"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/store_profile", wrappers.NonROWrapper[hotel.StoreProfileRequest, hotel.StoreProfileResponse](storeProfile))
 	http.HandleFunc("/ro_get_profiles", wrappers.ROWrapper[hotel.GetProfilesRequest, hotel.GetProfilesResponse](getProfiles))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("profile listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

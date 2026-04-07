@@ -5,16 +5,17 @@ import (
 	"github.com/DKW2/MuCache_Extended/pkg/state"
 )
 
+const ratePrefix = "rate:"
+
 func StoreRate(ctx context.Context, rate Rate) string {
-	state.SetState(ctx, rate.HotelId, rate)
+	state.SetState(ctx, ratePrefix+rate.HotelId, rate)
 	return rate.HotelId
 }
 
 func GetRates(ctx context.Context, hotelIds []string) []Rate {
-	//fmt.Printf("[ReviewStorage] Asked for: %v\n", reviewIds)
 	rates := make([]Rate, len(hotelIds))
 	for i, hotelId := range hotelIds {
-		rate, err := state.GetState[Rate](ctx, hotelId)
+		rate, err := state.GetState[Rate](ctx, ratePrefix+hotelId)
 		if err != nil {
 			panic(err)
 		}

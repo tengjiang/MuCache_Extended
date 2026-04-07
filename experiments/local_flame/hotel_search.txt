@@ -1,0 +1,2 @@
+# app_name  channel_name
+rate search_rate

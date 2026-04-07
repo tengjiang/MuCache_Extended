@@ -1,0 +1,6 @@
+# app_name  channel_name
+search fe_search
+rate fe_rate
+reservation fe_reservation
+profile fe_profile
+user fe_user
