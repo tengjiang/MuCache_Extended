@@ -69,8 +69,8 @@ start_daemon() {
     "$FLAME_BIN" \
         --channel-name "$ch" \
         --msg-size 2048 \
-        --capacity 256 \
-            --doorbell \
+        --window-size 256 \
+        --blocking \
         --ready-path "$ready_file" \
         > "$LOGS/flame_daemon_${ch}.log" 2>&1 &
 }
@@ -89,28 +89,19 @@ fi
 redis-cli flushall >/dev/null
 log "Redis OK"
 
-# ── flame channels ─────────────────────────────────────────────────────────────
-# frontend → search:       fe_search       (req + resp)
-# frontend → rate:         fe_rate         (req + resp)
-# frontend → reservation:  fe_reservation  (req + resp)
-# frontend → profile:      fe_profile      (req + resp)
-# frontend → user:         fe_user         (req + resp)
-# search → rate:           search_rate     (req + resp)
-# Total: 6 channel pairs = 12 daemons
+# ── flame channels (tcs_api: each name is one bidirectional channel) ──────────
+# frontend → search, rate, reservation, profile, user  (5 channels)
+# search   → rate                                       (1 channel)
+# Total: 6 bidirectional channels = 6 daemons
 
 if [[ "$MODE" == "flame" ]]; then
-    log "Starting flame daemons (12 channels: 6 pairs × req+resp)..."
+    log "Starting flame daemons (6 bidirectional channels)..."
     for ch in fe_search fe_rate fe_reservation fe_profile fe_user search_rate; do
-        for dir in req resp; do
-            start_daemon "${ch}_${dir}"
-        done
-        log "  daemons for $ch (req+resp)"
+        start_daemon "$ch"
+        log "  daemon for $ch"
     done
-
     for ch in fe_search fe_rate fe_reservation fe_profile fe_user search_rate; do
-        for dir in req resp; do
-            wait_file "$FLAME_READY_DIR/flame_${ch}_${dir}.ready" "daemon_${ch}_${dir}"
-        done
+        wait_file "$FLAME_READY_DIR/flame_${ch}.ready" "daemon_${ch}"
     done
 fi
 

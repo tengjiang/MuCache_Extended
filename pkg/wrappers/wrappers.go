@@ -54,9 +54,7 @@ func PreReqStart(ctx context.Context) {
 		deps.InitDep(callId)
 		// Inform the cache manager that this call has started
 		callArgs := CtxCallArgs(ctx)
-		if common.FLAME {
-			cm.WQ <- &cm.StartRequest{CallArgs: callArgs}
-		} else if common.ZMQ {
+		if common.ZMQ {
 			cm.SendRequestZmq(&cm.StartRequest{CallArgs: callArgs}, cm.TypeStartRequest)
 		} else {
 			cm.SendStartRequestHttp(&cm.StartRequest{CallArgs: callArgs}, common.CMUrl)
@@ -74,9 +72,7 @@ func PreRead(ctx context.Context, key cm.Key) {
 }
 
 func PreWrite(ctx context.Context, key cm.Key) {
-	if common.FLAME {
-		cm.WQ <- &cm.InvalidateKeyRequest{Key: key}
-	} else if common.ZMQ {
+	if common.ZMQ {
 		cm.SendRequestZmq(&cm.InvalidateKeyRequest{Key: key}, cm.TypeInvRequest)
 	} else {
 		cm.SendInvRequestHttp(&cm.InvalidateKeyRequest{Key: key}, common.CMUrl)
@@ -84,9 +80,7 @@ func PreWrite(ctx context.Context, key cm.Key) {
 }
 
 func PostWrite(ctx context.Context, key cm.Key) {
-	if common.FLAME {
-		cm.WQ <- &cm.InvalidateKeyRequest{Key: key}
-	} else if common.ZMQ {
+	if common.ZMQ {
 		cm.SendRequestZmq(&cm.InvalidateKeyRequest{Key: key}, cm.TypeInvRequest)
 	} else {
 		cm.SendInvRequestHttp(&cm.InvalidateKeyRequest{Key: key}, common.CMUrl)
@@ -102,9 +96,7 @@ func PreReqEnd(ctx context.Context, retVal cm.ReturnVal) {
 		callArgs := CtxCallArgs(ctx)
 		currServiceName := CtxCaller(ctx)
 		endReq := cm.EndRequest{CallArgs: callArgs, KeyDeps: keyDeps, CallDeps: callDeps, Caller: currServiceName, ReturnVal: retVal}
-		if common.FLAME {
-			cm.WQ <- &endReq
-		} else if common.ZMQ {
+		if common.ZMQ {
 			cm.SendRequestZmq(&endReq, cm.TypeEndRequest)
 		} else {
 			cm.SendEndRequestHttp(&endReq, common.CMUrl)

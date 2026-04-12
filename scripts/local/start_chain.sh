@@ -82,28 +82,23 @@ log "Redis OK"
 # hop3: service3 → service4
 # hop4: service4 → backend
 if [[ "$MODE" == "flame" ]]; then
-    log "Starting flame daemons (8 channels: 4 hops × req+resp)..."
-    # Only inter-service hops use shm; client→service1 stays HTTP
+    log "Starting flame daemons (4 bidirectional channels, one per hop)..."
+    # tcs_api model: each channel name is bidirectional (req + resp inside one
+    # PeerSharedMemory pair). One daemon per hop does both directions.
     for hop in hop1 hop2 hop3 hop4; do
-        for dir in req resp; do
-            ch="${hop}_${dir}"
-            ready_file="$FLAME_READY_DIR/flame_${ch}.ready"
-            "$FLAME_BIN" \
-                --channel-name "$ch" \
-                --msg-size 2048 \
-                --capacity 256 \
-                --doorbell \
-                --ready-path "$ready_file" \
-                > "$LOGS/flame_daemon_${ch}.log" 2>&1 &
-        done
-        log "  daemons for $hop (req+resp)"
+        ready_file="$FLAME_READY_DIR/flame_${hop}.ready"
+        "$FLAME_BIN" \
+            --channel-name "$hop" \
+            --msg-size 2048 \
+            --window-size 256 \
+            --blocking \
+            --ready-path "$ready_file" \
+            > "$LOGS/flame_daemon_${hop}.log" 2>&1 &
+        log "  daemon for $hop"
     done
 
-    # Wait for all 8 daemons
     for hop in hop1 hop2 hop3 hop4; do
-        for dir in req resp; do
-            wait_file "$FLAME_READY_DIR/flame_${hop}_${dir}.ready" "daemon_${hop}_${dir}"
-        done
+        wait_file "$FLAME_READY_DIR/flame_${hop}.ready" "daemon_${hop}"
     done
 fi
 

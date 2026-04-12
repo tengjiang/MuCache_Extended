@@ -1,15 +1,25 @@
-#ifndef FLAME_RPC_C_API_H_
-#define FLAME_RPC_C_API_H_
+#ifndef FLAME_RPC_FLAME_C_API_H_
+#define FLAME_RPC_FLAME_C_API_H_
 
 /*
- * Plain-C API for flame RPC — used by Go CGO bindings.
+ * Plain-C API for flame RPC — CGO / FFI bindings.
+ *
+ * This API is a thin wrapper around the existing:
+ *   flame::benchmark::TrustedCopierServiceBenchmark  (client / server side)
+ *   flame::benchmark::TCSPoolManager                  (daemon side)
+ *   flame::rpc::CounterQueue*, flame::rpc::Doorbell   (inside)
+ *
+ * Named-shm (shm_open) replaces memfd_create so independent processes can
+ * connect by name without fd passing.
+ *
+ * Model: ONE channel name = ONE bidirectional RPC pipe between a client
+ * and a server, mediated by a daemon.  Internally the daemon creates two
+ * shm regions: <name>_cd and <name>_ds.
  *
  * Lifecycle:
- *   1. Daemon process calls flame_daemon_create() then flame_daemon_run()
- *      (blocks; run from a dedicated thread or process).
- *   2. Writer process calls flame_writer_connect(), then flame_writer_send().
- *   3. Reader process calls flame_reader_connect(), then flame_reader_recv_loop()
- *      or flame_reader_try_recv() in a polling loop.
+ *   1. Daemon: flame_daemon_create() + flame_daemon_run() (blocks)
+ *   2. Client: flame_client_connect() then send / recv in pairs
+ *   3. Server: flame_server_connect() then recv / send in pairs
  */
 
 #include <stddef.h>
@@ -19,74 +29,80 @@
 extern "C" {
 #endif
 
-/* Opaque handles */
-typedef struct FlameWriter_ FlameWriter;
-typedef struct FlameReader_ FlameReader;
+typedef struct FlameClient_ FlameClient;
+typedef struct FlameServer_ FlameServer;
 typedef struct FlameDaemon_ FlameDaemon;
-
-/* Callback invoked by flame_reader_recv for each message.
- * Note: msg points into shm; treat as read-only even though not const-qualified
- * (const void* is intentionally avoided to satisfy CGO export constraints). */
-typedef void (*FlameRecvCb)(void* msg, size_t msg_size, void* user_data);
 
 /* ── Daemon ───────────────────────────────────────────────────────────────── */
 
-/* Create both shm regions (cd + ds).  Returns NULL on error (check errno). */
-FlameDaemon* flame_daemon_create(const char* channel_name,
+/*
+ * Create both shm regions (<name>_cd and <name>_ds) and initialize the
+ * TCSPoolManager. Window_size is the per-side buffer count (default 256).
+ * Blocking: nonzero = use futex doorbells, 0 = pure polling.
+ *
+ * Returns NULL on error (e.g. region already exists — unlink first).
+ */
+FlameDaemon* flame_daemon_create(const char* name,
                                  size_t      msg_size,
-                                 size_t      capacity,
-                                 int         doorbell);   /* 0 = poll, 1 = doorbell */
+                                 uint32_t    window_size,
+                                 int         blocking);
 
-/* Run the copy loop — blocks until flame_daemon_stop() is called. */
+/*
+ * Run the copy loop (client→server and server→client).
+ * Blocks until flame_daemon_stop() is called from another thread.
+ */
 void flame_daemon_run(FlameDaemon* d);
 
-/* Signal the daemon's run() loop to exit (safe to call from another thread). */
+/* Signal the run loop to exit (safe from another thread). */
 void flame_daemon_stop(FlameDaemon* d);
 
-/* Remove shm names from /dev/shm.  Call after stop(). */
+/* Remove <name>_cd and <name>_ds from /dev/shm/. Call after stop. */
 void flame_daemon_unlink(FlameDaemon* d);
 
-/* Free the handle (also calls close() on both regions). */
+/* Free the handle (also munmaps both regions). */
 void flame_daemon_destroy(FlameDaemon* d);
 
-/* ── Writer ───────────────────────────────────────────────────────────────── */
-
-/* Open the cd shm region (daemon must have created it first). */
-FlameWriter* flame_writer_connect(const char* channel_name,
-                                  size_t      msg_size,
-                                  size_t      capacity,
-                                  int         doorbell);
-
-/* Copy msg_size bytes from buf into the ring.  Blocks (spin) if full. */
-void flame_writer_send(FlameWriter* w, const void* buf);
-
-/* Close the shm mapping and free the handle. */
-void flame_writer_destroy(FlameWriter* w);
-
-/* ── Reader ───────────────────────────────────────────────────────────────── */
-
-/* Open the ds shm region (daemon must have created it first). */
-FlameReader* flame_reader_connect(const char* channel_name,
-                                  size_t      msg_size,
-                                  size_t      capacity,
-                                  int         doorbell);
+/* ── Client ───────────────────────────────────────────────────────────────── */
 
 /*
- * Block until the next message is ready, invoke cb(msg, msg_size, user_data),
- * then return.  Repeat in a loop to process a stream.
+ * Open <name>_cd (daemon must have created it) and attach as the client.
+ * msg_size and window_size must match the daemon's configuration.
  */
-void flame_reader_recv(FlameReader* r, FlameRecvCb cb, void* user_data);
+FlameClient* flame_client_connect(const char* name,
+                                  size_t      msg_size,
+                                  uint32_t    window_size,
+                                  int         blocking);
 
 /*
- * Non-blocking: if a message is ready invoke cb and return 1, else return 0.
+ * Send `len` bytes (copied into a shm-backed buffer). If `len` > msg_size
+ * the call fails. Blocks (or spin-polls) until a send slot is free.
+ * Returns 0 on success, -1 on error.
  */
-int flame_reader_try_recv(FlameReader* r, FlameRecvCb cb, void* user_data);
+int flame_client_send(FlameClient* c, const void* buf, size_t len);
 
-/* Close the shm mapping and free the handle. */
-void flame_reader_destroy(FlameReader* r);
+/*
+ * Receive one response. Copies up to `max_len` bytes into `buf` and writes
+ * the actual length to *out_len. Blocks until a response arrives.
+ * Returns 0 on success, -1 on error.
+ */
+int flame_client_recv(FlameClient* c, void* buf, size_t max_len, size_t* out_len);
+
+void flame_client_destroy(FlameClient* c);
+
+/* ── Server ───────────────────────────────────────────────────────────────── */
+
+FlameServer* flame_server_connect(const char* name,
+                                  size_t      msg_size,
+                                  uint32_t    window_size,
+                                  int         blocking);
+
+int flame_server_recv(FlameServer* s, void* buf, size_t max_len, size_t* out_len);
+int flame_server_send(FlameServer* s, const void* buf, size_t len);
+
+void flame_server_destroy(FlameServer* s);
 
 #ifdef __cplusplus
-} /* extern "C" */
+}
 #endif
 
-#endif /* FLAME_RPC_C_API_H_ */
+#endif

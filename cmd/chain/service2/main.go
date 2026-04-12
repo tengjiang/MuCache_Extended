@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
 	"github.com/DKW2/MuCache_Extended/pkg/common"
 	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
@@ -56,7 +55,6 @@ func writeFlame(req twoserivces.WriteRequest) string {
 
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
-	cm.StartFlame() // no-op unless built with -tags flame
 
 	if common.FLAME {
 		flame.StartServer(flame.HandlerRegistry{

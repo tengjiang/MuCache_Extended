@@ -1,201 +1,173 @@
-// Package flame provides Go bindings for the flame RPC channel (CGO).
+// Package flame provides Go bindings for the flame RPC (tcs_api).
 //
-// It wraps flame_c_api.h (C++) to give Go code a ChannelWriter and
-// ChannelReader that communicate via shared memory through the TCS daemon.
+// Each channel is bidirectional: a single channel name maps to one
+// request queue + one response queue, mediated by a daemon.
+//
+// The low-level primitives (Client/Server send/recv) are wrapped by
+// rpc.go's RpcClient/RpcServer which adds per-call correlation IDs.
 //
 // Build requirements:
-//   - libflame_rpc.a must be compiled and placed at the path set by
-//     FLAME_RPC_LIB_DIR (default: /mydata/flame-benchmark/bin).
-//   - The flame-benchmark headers must be on the include path
-//     (FLAME_RPC_INCLUDE_DIR, default: /mydata/flame-benchmark).
+//   - libflame_rpc.a must exist at /mydata/flame-benchmark/bin/
+//   - flame_c_api.h must be at ./flame_rpc/ (vendored copy)
 
 package flame
 
 /*
-#cgo CFLAGS:   -I${SRCDIR}
-#cgo LDFLAGS:  -L/mydata/flame-benchmark/bin -lflame_rpc -lrt -lstdc++ -lm
+#cgo CFLAGS:  -I${SRCDIR}
+#cgo LDFLAGS: -L/mydata/flame-benchmark/bin -lflame_rpc -lboost_program_options -lrt -lstdc++ -lm
 
 #include "flame_rpc/flame_c_api.h"
 #include <stdlib.h>
-
-// Forward declaration of the Go-exported callback (void* not const void*,
-// matching both the C API typedef and CGO export constraints).
-extern void goFlameRecvCb(void* msg, size_t msg_size, void* user_data);
 */
 import "C"
 import (
+	"fmt"
 	"runtime"
-	"sync"
 	"unsafe"
 )
 
-// ── callback registry ─────────────────────────────────────────────────────────
-// CGO cannot pass Go function pointers through C, so we keep a registry of
-// Go callbacks indexed by a uintptr handle that is passed as user_data.
-
-type recvFunc func(msg []byte)
-
-var (
-	cbMu   sync.Mutex
-	cbMap  = make(map[uintptr]recvFunc)
-	cbNext uintptr = 1
-)
-
-func registerCb(fn recvFunc) uintptr {
-	cbMu.Lock()
-	defer cbMu.Unlock()
-	id := cbNext
-	cbNext++
-	cbMap[id] = fn
-	return id
-}
-
-func unregisterCb(id uintptr) {
-	cbMu.Lock()
-	defer cbMu.Unlock()
-	delete(cbMap, id)
-}
-
-//export goFlameRecvCb
-func goFlameRecvCb(msg unsafe.Pointer, msgSize C.size_t, userData unsafe.Pointer) {
-	// userData points to a heap-allocated uint64 holding the callback ID.
-	id := uintptr(*(*uint64)(userData))
-	cbMu.Lock()
-	fn := cbMap[id]
-	cbMu.Unlock()
-	if fn == nil {
-		return
-	}
-	// Copy into a Go slice (safe; C memory is only valid for this call)
-	buf := C.GoBytes(msg, C.int(msgSize))
-	fn(buf)
-}
-
-// ── Config ────────────────────────────────────────────────────────────────────
-
-// Config mirrors flame::rpc::ChannelConfig.
+// Config describes a flame channel.
 type Config struct {
-	Name     string
-	MsgSize  int  // bytes; default 256
-	Capacity int  // ring slots; must be power-of-2; default 256
-	Doorbell bool // false = polling (default)
+	Name       string
+	MsgSize    int  // fixed frame size in bytes
+	WindowSize int  // outstanding-message buffer depth per side (power-of-2-ish)
+	Blocking   bool // true = futex doorbells, false = spin-polling
 }
 
 func (c Config) msgSize() C.size_t {
 	if c.MsgSize <= 0 {
-		return 256
+		return 1024
 	}
 	return C.size_t(c.MsgSize)
 }
-func (c Config) capacity() C.size_t {
-	if c.Capacity <= 0 {
+func (c Config) window() C.uint32_t {
+	if c.WindowSize <= 0 {
 		return 256
 	}
-	return C.size_t(c.Capacity)
+	return C.uint32_t(c.WindowSize)
 }
-func (c Config) doorbell() C.int {
-	if c.Doorbell {
+func (c Config) blocking() C.int {
+	if c.Blocking {
 		return 1
 	}
 	return 0
 }
 
-// ── Writer ────────────────────────────────────────────────────────────────────
+// ── Client ───────────────────────────────────────────────────────────────────
 
-// Writer sends fixed-size messages to a flame channel via shared memory.
-type Writer struct {
-	w   *C.FlameWriter
+// Client is the caller side of a flame channel. Call Send() to push a request,
+// then Recv() to read the matching response. Not thread-safe on its own —
+// RpcClient (rpc.go) adds the concurrency wrapper.
+type Client struct {
+	c   *C.FlameClient
 	cfg Config
+	buf []byte // scratch for Recv
 }
 
-// Connect opens the channel for writing (daemon must be running).
-func NewWriter(cfg Config) (*Writer, error) {
+// NewClient connects to an existing channel (daemon must be running).
+func NewClient(cfg Config) (*Client, error) {
 	name := C.CString(cfg.Name)
 	defer C.free(unsafe.Pointer(name))
 
-	w := C.flame_writer_connect(name, cfg.msgSize(), cfg.capacity(), cfg.doorbell())
-	if w == nil {
-		return nil, &Error{"flame_writer_connect returned nil"}
+	handle := C.flame_client_connect(name, cfg.msgSize(), cfg.window(), cfg.blocking())
+	if handle == nil {
+		return nil, fmt.Errorf("flame_client_connect(%q)", cfg.Name)
 	}
-	fw := &Writer{w: w, cfg: cfg}
-	runtime.SetFinalizer(fw, (*Writer).Close)
-	return fw, nil
+	cl := &Client{c: handle, cfg: cfg, buf: make([]byte, cfg.MsgSize)}
+	runtime.SetFinalizer(cl, (*Client).Close)
+	return cl, nil
 }
 
-// Send copies buf (must be exactly cfg.MsgSize bytes) into the ring.
-// Blocks (spin) if the ring is full.
-func (w *Writer) Send(buf []byte) {
+// Send copies buf (≤ MsgSize bytes) into the request queue.
+func (c *Client) Send(buf []byte) error {
 	if len(buf) == 0 {
-		return
+		return fmt.Errorf("Send: empty buf")
 	}
-	C.flame_writer_send(w.w, unsafe.Pointer(&buf[0]))
+	if len(buf) > c.cfg.MsgSize {
+		return fmt.Errorf("Send: buf too large (%d > %d)", len(buf), c.cfg.MsgSize)
+	}
+	rc := C.flame_client_send(c.c, unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+	if rc != 0 {
+		return fmt.Errorf("flame_client_send")
+	}
+	return nil
 }
 
-// Close unmaps the shared memory.
-func (w *Writer) Close() {
-	if w.w != nil {
-		C.flame_writer_destroy(w.w)
-		w.w = nil
-		runtime.SetFinalizer(w, nil)
+// Recv blocks until a response arrives. Returns a Go-owned copy of the frame.
+func (c *Client) Recv() ([]byte, error) {
+	var outLen C.size_t
+	rc := C.flame_client_recv(c.c, unsafe.Pointer(&c.buf[0]),
+		C.size_t(len(c.buf)), &outLen)
+	if rc != 0 {
+		return nil, fmt.Errorf("flame_client_recv")
+	}
+	out := make([]byte, int(outLen))
+	copy(out, c.buf[:outLen])
+	return out, nil
+}
+
+// Close releases the shm mapping.
+func (c *Client) Close() {
+	if c.c != nil {
+		C.flame_client_destroy(c.c)
+		c.c = nil
+		runtime.SetFinalizer(c, nil)
 	}
 }
 
-// ── Reader ────────────────────────────────────────────────────────────────────
+// ── Server ───────────────────────────────────────────────────────────────────
 
-// Reader receives fixed-size messages from a flame channel via shared memory.
-type Reader struct {
-	r    *C.FlameReader
-	cfg  Config
-	cbID uintptr
-	// idBox holds cbID as a heap-allocated uint64 so we can pass a stable
-	// pointer through C without violating Go's unsafe.Pointer rules.
-	idBox *uint64
+// Server is the callee side. Call Recv() to read a request, then Send() the
+// response. Not thread-safe on its own — RpcServer (rpc.go) serialises.
+type Server struct {
+	s   *C.FlameServer
+	cfg Config
+	buf []byte
 }
 
-// NewReader opens the channel for reading (daemon must be running).
-// fn is called for every message received.
-func NewReader(cfg Config, fn recvFunc) (*Reader, error) {
+func NewServer(cfg Config) (*Server, error) {
 	name := C.CString(cfg.Name)
 	defer C.free(unsafe.Pointer(name))
 
-	r := C.flame_reader_connect(name, cfg.msgSize(), cfg.capacity(), cfg.doorbell())
-	if r == nil {
-		return nil, &Error{"flame_reader_connect returned nil"}
+	handle := C.flame_server_connect(name, cfg.msgSize(), cfg.window(), cfg.blocking())
+	if handle == nil {
+		return nil, fmt.Errorf("flame_server_connect(%q)", cfg.Name)
 	}
-	id := registerCb(fn)
-	box := new(uint64)
-	*box = uint64(id)
-	fr := &Reader{r: r, cfg: cfg, cbID: id, idBox: box}
-	runtime.SetFinalizer(fr, (*Reader).Close)
-	return fr, nil
+	sv := &Server{s: handle, cfg: cfg, buf: make([]byte, cfg.MsgSize)}
+	runtime.SetFinalizer(sv, (*Server).Close)
+	return sv, nil
 }
 
-// Recv blocks until the next message is ready, then invokes the callback.
-func (r *Reader) Recv() {
-	C.flame_reader_recv(r.r,
-		(C.FlameRecvCb)(C.goFlameRecvCb),
-		unsafe.Pointer(r.idBox))
+func (s *Server) Recv() ([]byte, error) {
+	var outLen C.size_t
+	rc := C.flame_server_recv(s.s, unsafe.Pointer(&s.buf[0]),
+		C.size_t(len(s.buf)), &outLen)
+	if rc != 0 {
+		return nil, fmt.Errorf("flame_server_recv")
+	}
+	out := make([]byte, int(outLen))
+	copy(out, s.buf[:outLen])
+	return out, nil
 }
 
-// TryRecv is non-blocking; returns true if a message was delivered.
-func (r *Reader) TryRecv() bool {
-	return C.flame_reader_try_recv(r.r,
-		(C.FlameRecvCb)(C.goFlameRecvCb),
-		unsafe.Pointer(r.idBox)) != 0
+func (s *Server) Send(buf []byte) error {
+	if len(buf) == 0 {
+		return fmt.Errorf("Send: empty buf")
+	}
+	if len(buf) > s.cfg.MsgSize {
+		return fmt.Errorf("Send: buf too large (%d > %d)", len(buf), s.cfg.MsgSize)
+	}
+	rc := C.flame_server_send(s.s, unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+	if rc != 0 {
+		return fmt.Errorf("flame_server_send")
+	}
+	return nil
 }
 
-// Close unmaps the shared memory.
-func (r *Reader) Close() {
-	if r.r != nil {
-		C.flame_reader_destroy(r.r)
-		r.r = nil
-		unregisterCb(r.cbID)
-		runtime.SetFinalizer(r, nil)
+func (s *Server) Close() {
+	if s.s != nil {
+		C.flame_server_destroy(s.s)
+		s.s = nil
+		runtime.SetFinalizer(s, nil)
 	}
 }
-
-// ── Error ─────────────────────────────────────────────────────────────────────
-
-type Error struct{ msg string }
-
-func (e *Error) Error() string { return "flame: " + e.msg }

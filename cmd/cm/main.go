@@ -26,14 +26,7 @@ func main() {
 	go Process(cfg, state)
 	go HttpSender(cfg)
 
-	if common.FLAME {
-		// flame RPC handles start/end/inv from the wrapper; HTTP still handles
-		// CM→CM invalidations (/invcalls, /save).
-		ServeFlame(cfg)
-		go ServeHttp(cfg)
-		// Block forever (ServeFlame starts a goroutine, so we need to park here)
-		select {}
-	} else if common.ZMQ {
+	if common.ZMQ {
 		// HTTP servers are only used between cache managers
 		go ServeHttp(cfg)
 		Serve0mq(cfg)
