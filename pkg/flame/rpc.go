@@ -87,21 +87,25 @@ func rpcDecodeBody(buf []byte) []byte {
 // matching, so multiple goroutines can call Call() concurrently.
 type RpcClient struct {
 	cl      *Client
-	muSend  sync.Mutex     // serialise Send (single-writer queue)
-	pending sync.Map       // id → chan []byte
+	muSend  sync.Mutex // serialise Send (single-writer queue)
+	pending sync.Map   // id → chan []byte
 	nextID  atomic.Uint32
 	sendBuf []byte
-	sem     chan struct{}  // limits in-flight requests below buffer ring depth
 }
 
-// rpcMaxOutstanding caps in-flight Call()s. Must stay well below the underlying
-// TCS WindowSize (256) so the client's allocate cursor never wraps onto a
-// buffer slot still holding a pending response from the daemon.
-const rpcMaxOutstanding = 64
+// RpcWindowSize is the per-side buffer count. Must satisfy
+// `window_size <= 2 * queue_capacity` (the TCS assertion), which caps it at
+// 512 for the default queue_capacity_shift=8.
+//
+// Setting window_size >= 2x queue_capacity gives the request-buffer cursor a
+// full queue's worth of margin before wrapping — by the time the client's
+// cursor returns to slot i, the daemon has already consumed far more than
+// queue_capacity messages after slot i, so slot i is safely free.
+const RpcWindowSize = 512
 
 // NewRpcClient connects to an existing bidirectional channel.
 func NewRpcClient(name string) (*RpcClient, error) {
-	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: 256, Blocking: true}
+	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
 	cl, err := NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("RpcClient: %w", err)
@@ -110,7 +114,6 @@ func NewRpcClient(name string) (*RpcClient, error) {
 	c := &RpcClient{
 		cl:      cl,
 		sendBuf: make([]byte, RpcMsgSize),
-		sem:     make(chan struct{}, rpcMaxOutstanding),
 	}
 
 	// Response dispatch goroutine — reads responses and routes by id.
@@ -138,12 +141,8 @@ func NewRpcClient(name string) (*RpcClient, error) {
 }
 
 // Call sends a request and blocks until the matching response arrives.
+// Safe for concurrent use by multiple goroutines.
 func (c *RpcClient) Call(method string, body []byte) ([]byte, error) {
-	// Cap concurrent in-flight Call()s so the underlying buffer ring
-	// cursor never wraps onto a slot still pending a daemon response.
-	c.sem <- struct{}{}
-	defer func() { <-c.sem }()
-
 	id := c.nextID.Add(1)
 	ch := make(chan []byte, 1)
 	c.pending.Store(id, ch)
@@ -179,7 +178,7 @@ type RpcServer struct {
 // NewRpcServer opens the channel and starts a goroutine that reads requests
 // and dispatches to handler. Each request handler runs in its own goroutine.
 func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
-	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: 256, Blocking: true}
+	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
 	sv, err := NewServer(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("RpcServer: %w", err)
