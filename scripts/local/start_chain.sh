@@ -92,6 +92,7 @@ if [[ "$MODE" == "flame" ]]; then
                 --channel-name "$ch" \
                 --msg-size 2048 \
                 --capacity 256 \
+                --doorbell \
                 --ready-path "$ready_file" \
                 > "$LOGS/flame_daemon_${ch}.log" 2>&1 &
         done

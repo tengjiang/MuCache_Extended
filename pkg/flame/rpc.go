@@ -99,7 +99,7 @@ type RpcClient struct {
 //   - reads  responses from <name>_resp
 func NewRpcClient(name string) (*RpcClient, error) {
 	cfg := func(suffix string) Config {
-		return Config{Name: name + suffix, MsgSize: RpcMsgSize, Capacity: 256}
+		return Config{Name: name + suffix, MsgSize: RpcMsgSize, Capacity: 256, Doorbell: true}
 	}
 
 	w, err := NewWriter(cfg("_req"))
@@ -165,7 +165,7 @@ type RpcServer struct {
 // The server starts reading immediately in a background goroutine.
 func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
 	cfg := func(suffix string) Config {
-		return Config{Name: name + suffix, MsgSize: RpcMsgSize, Capacity: 256}
+		return Config{Name: name + suffix, MsgSize: RpcMsgSize, Capacity: 256, Doorbell: true}
 	}
 
 	w, err := NewWriter(cfg("_resp"))
