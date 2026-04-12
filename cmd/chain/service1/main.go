@@ -7,8 +7,6 @@ import (
 	"github.com/DKW2/MuCache_Extended/internal/loadcm"
 	"github.com/DKW2/MuCache_Extended/internal/twoservices"
 	"github.com/DKW2/MuCache_Extended/pkg/cm"
-	"github.com/DKW2/MuCache_Extended/pkg/common"
-	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/invoke"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"math/rand"
@@ -76,16 +74,8 @@ func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
 	cm.StartFlame() // no-op unless built with -tags flame
 
-	if common.FLAME {
-		flame.StartServer(flame.HandlerRegistry{
-			"ro_read": flame.WrapHandler(func(req twoserivces.ReadRequest) twoserivces.ReadResponse {
-				return *read(context.Background(), &req)
-			}),
-			"write": flame.WrapHandler(func(req twoserivces.WriteRequest) string {
-				return *write(context.Background(), &req)
-			}),
-		})
-	}
+	// service1 receives HTTP from client (oha) — no flame server needed.
+	// It sends downstream to service2 via flame (FLAME_DOWNSTREAM).
 
 	port := os.Getenv("PORT")
 	if port == "" {

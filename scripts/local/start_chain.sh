@@ -82,9 +82,9 @@ log "Redis OK"
 # hop3: service3 → service4
 # hop4: service4 → backend
 if [[ "$MODE" == "flame" ]]; then
-    log "Starting flame daemons (10 channels: 5 hops × req+resp)..."
-    # hop0: client(flamebench) → service1
-    for hop in hop0 hop1 hop2 hop3 hop4; do
+    log "Starting flame daemons (8 channels: 4 hops × req+resp)..."
+    # Only inter-service hops use shm; client→service1 stays HTTP
+    for hop in hop1 hop2 hop3 hop4; do
         for dir in req resp; do
             ch="${hop}_${dir}"
             ready_file="$FLAME_READY_DIR/flame_${ch}.ready"
@@ -98,8 +98,8 @@ if [[ "$MODE" == "flame" ]]; then
         log "  daemons for $hop (req+resp)"
     done
 
-    # Wait for all 10 daemons
-    for hop in hop0 hop1 hop2 hop3 hop4; do
+    # Wait for all 8 daemons
+    for hop in hop1 hop2 hop3 hop4; do
         for dir in req resp; do
             wait_file "$FLAME_READY_DIR/flame_${hop}_${dir}.ready" "daemon_${hop}_${dir}"
         done
@@ -115,16 +115,15 @@ fi
 # ── start microservices ────────────────────────────────────────────────────────
 log "Starting microservices (mode=$MODE)..."
 
-# service1: HTTP in from client + flame in from flamebench (hop0), flame out to service2 (hop1)
+# service1: HTTP in from client (oha), flame out to service2 (hop1)
 env PORT=3001 \
     REDIS_URL="localhost:6379" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     APP_NAME_NO_UNDERSCORES="service1" \
-    FLAME_UPSTREAM="hop0" \
     FLAME_DOWNSTREAM="hop1" \
     FLAME_DOWNSTREAM_APP="service2" \
     "$BIN/chain_service1_${SUFFIX}" > "$LOGS/service1.log" 2>&1 &
-log "  service1 → :3001  (upstream=hop0, downstream=hop1)"
+log "  service1 → :3001  (HTTP in, downstream=hop1)"
 
 # service2: flame in from service1 (hop1), flame out to service3 (hop2)
 env PORT=3002 \
