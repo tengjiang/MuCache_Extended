@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -29,15 +31,32 @@ func shipOrder(ctx context.Context, req *boutique.ShipOrderRequest) *boutique.Sh
 	return &resp
 }
 
+func getQuoteFlame(req boutique.GetQuoteRequest) boutique.GetQuoteResponse {
+	return *getQuote(context.Background(), &req)
+}
+
+func shipOrderFlame(req boutique.ShipOrderRequest) boutique.ShipOrderResponse {
+	return *shipOrder(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_get_quote": flame.WrapHandler(getQuoteFlame),
+			"ship_order":   flame.WrapHandler(shipOrderFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4108"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_get_quote", wrappers.ROWrapper[boutique.GetQuoteRequest, boutique.GetQuoteResponse](getQuote))
 	http.HandleFunc("/ship_order", wrappers.NonROWrapper[boutique.ShipOrderRequest, boutique.ShipOrderResponse](shipOrder))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("shipping listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

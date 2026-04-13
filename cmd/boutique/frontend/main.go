@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
-	"flag"
 )
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
@@ -53,14 +55,49 @@ func checkout(ctx context.Context, request *boutique.CheckoutRequest) *boutique.
 	return &resp
 }
 
+func homeFlame(req boutique.HomeRequest) boutique.HomeResponse {
+	return *home(context.Background(), &req)
+}
+
+func browseProductFlame(req boutique.BrowseProductRequest) boutique.BrowseProductResponse {
+	return *browseProduct(context.Background(), &req)
+}
+
+func prefetchBrowseProductFlame(req boutique.BrowseProductRequest) boutique.BrowseProductResponse {
+	return *prefetchBrowseProduct(context.Background(), &req)
+}
+
+func viewCartFlame(req boutique.ViewCartRequest) boutique.ViewCartResponse {
+	return *viewCart(context.Background(), &req)
+}
+
+func checkoutFlame(req boutique.CheckoutRequest) boutique.CheckoutResponse {
+	return *checkout(context.Background(), &req)
+}
+
 func main() {
 	prefetch := flag.Bool("prefetch", false, "Flag to enable prefetching")
 	flag.Parse()
 
-	fmt.Println( "Prefetch flag is ", *prefetch )
+	fmt.Println("Prefetch flag is ", *prefetch)
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+
+	if common.FLAME {
+		browseHandler := browseProductFlame
+		if *prefetch {
+			browseHandler = prefetchBrowseProductFlame
+		}
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_home":            flame.WrapHandler(homeFlame),
+			"ro_browse_product":  flame.WrapHandler(browseHandler),
+			"ro_view_cart":       flame.WrapHandler(viewCartFlame),
+			"checkout":           flame.WrapHandler(checkoutFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4100"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_home", wrappers.ROWrapper[boutique.HomeRequest, boutique.HomeResponse](home))
@@ -73,7 +110,8 @@ func main() {
 	//http.HandleFunc("/add_to_cart", wrappers.NonROWrapper[boutique.AddToCartRequest, boutique.AddToCartResponse](addToCart))
 	http.HandleFunc("/ro_view_cart", wrappers.ROWrapper[boutique.ViewCartRequest, boutique.ViewCartResponse](viewCart))
 	http.HandleFunc("/checkout", wrappers.ROWrapper[boutique.CheckoutRequest, boutique.CheckoutResponse](checkout))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("frontend listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}
