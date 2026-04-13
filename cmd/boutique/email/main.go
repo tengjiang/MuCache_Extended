@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -23,14 +25,26 @@ func sendEmail(ctx context.Context, req *boutique.SendOrderConfirmationRequest) 
 	return &resp
 }
 
+func sendEmailFlame(req boutique.SendOrderConfirmationRequest) boutique.SendOrderConfirmationResponse {
+	return *sendEmail(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_send_email": flame.WrapHandler(sendEmailFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4104"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_send_email", wrappers.ROWrapper[boutique.SendOrderConfirmationRequest, boutique.SendOrderConfirmationResponse](sendEmail))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("email listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -41,17 +43,44 @@ func initCurrencies(ctx context.Context, req *boutique.InitCurrencyRequest) *bou
 	return &resp
 }
 
+func setCurrencyFlame(req boutique.SetCurrencySupportRequest) boutique.SetCurrencySupportResponse {
+	return *setCurrency(context.Background(), &req)
+}
+
+func getCurrenciesFlame(req boutique.GetSupportedCurrenciesRequest) boutique.GetSupportedCurrenciesResponse {
+	return *getCurrencies(context.Background(), &req)
+}
+
+func convertCurrencyFlame(req boutique.ConvertCurrencyRequest) boutique.ConvertCurrencyResponse {
+	return *convertCurrency(context.Background(), &req)
+}
+
+func initCurrenciesFlame(req boutique.InitCurrencyRequest) boutique.InitCurrencyResponse {
+	return *initCurrencies(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"set_currency":        flame.WrapHandler(setCurrencyFlame),
+			"init_currencies":     flame.WrapHandler(initCurrenciesFlame),
+			"ro_get_currencies":   flame.WrapHandler(getCurrenciesFlame),
+			"ro_convert_currency": flame.WrapHandler(convertCurrencyFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4103"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/set_currency", wrappers.NonROWrapper[boutique.SetCurrencySupportRequest, boutique.SetCurrencySupportResponse](setCurrency))
 	http.HandleFunc("/init_currencies", wrappers.NonROWrapper[boutique.InitCurrencyRequest, boutique.InitCurrencyResponse](initCurrencies))
 	http.HandleFunc("/ro_get_currencies", wrappers.ROWrapper[boutique.GetSupportedCurrenciesRequest, boutique.GetSupportedCurrenciesResponse](getCurrencies))
 	http.HandleFunc("/ro_convert_currency", wrappers.ROWrapper[boutique.ConvertCurrencyRequest, boutique.ConvertCurrencyResponse](convertCurrency))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("currency listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

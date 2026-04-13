@@ -1,0 +1,5 @@
+# frontend's downstream channels (boutique)
+currency fe_currency
+cart fe_cart
+productcatalog fe_productcatalog
+checkout fe_checkout

@@ -1,0 +1,7 @@
+# checkout's downstream channels (boutique)
+productcatalog co_productcatalog
+currency co_currency
+cart co_cart
+shipping co_shipping
+payment co_payment
+email co_email

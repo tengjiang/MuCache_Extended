@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -23,14 +25,26 @@ func getRecommendations(ctx context.Context, req *boutique.GetRecommendationsReq
 	return &resp
 }
 
+func getRecommendationsFlame(req boutique.GetRecommendationsRequest) boutique.GetRecommendationsResponse {
+	return *getRecommendations(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"ro_get_recommendations": flame.WrapHandler(getRecommendationsFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4107"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_get_recommendations", wrappers.ROWrapper[boutique.GetRecommendationsRequest, boutique.GetRecommendationsResponse](getRecommendations))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("recommendations listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}

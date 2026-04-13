@@ -1,0 +1,2 @@
+# recommendations' downstream channel (boutique)
+productcatalog rec_productcatalog

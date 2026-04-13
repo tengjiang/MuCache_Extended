@@ -23,8 +23,11 @@ func _MoneyToString(m Money) string {
 	return fmt.Sprintf("%v.%v %v", m.Units, nanosStr, m.Currency)
 }
 
+const currencyPrefix = "currency:"
+const currenciesListKey = "currency:CURRENCIES"
+
 func SetCurrencySupport(ctx context.Context, currency Currency) bool {
-	state.SetState(ctx, currency.CurrencyCode, currency)
+	state.SetState(ctx, currencyPrefix+currency.CurrencyCode, currency)
 	return true
 }
 
@@ -34,11 +37,11 @@ func InitCurrencies(ctx context.Context, currencies []Currency) {
 		currencyCodes[i] = currency.CurrencyCode
 		SetCurrencySupport(ctx, currency)
 	}
-	state.SetState(ctx, "CURRENCIES", currencyCodes)
+	state.SetState(ctx, currenciesListKey, currencyCodes)
 }
 
 func ConvertCurrency(ctx context.Context, amount Money, toCurrency string) Money {
-	fromRate, err := state.GetState[Currency](ctx, amount.Currency)
+	fromRate, err := state.GetState[Currency](ctx, currencyPrefix+amount.Currency)
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +57,7 @@ func ConvertCurrency(ctx context.Context, amount Money, toCurrency string) Money
 	euros.Nanos = math.Round(euros.Nanos)
 
 	// Convert: EUR --> to_currency
-	toRate, err := state.GetState[Currency](ctx, toCurrency)
+	toRate, err := state.GetState[Currency](ctx, currencyPrefix+toCurrency)
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +76,7 @@ func ConvertCurrency(ctx context.Context, amount Money, toCurrency string) Money
 }
 
 func GetSupportedCurrencies(ctx context.Context) []Currency {
-	keys, err := state.GetState[[]string](ctx, "CURRENCIES")
+	keys, err := state.GetState[[]string](ctx, currenciesListKey)
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +84,11 @@ func GetSupportedCurrencies(ctx context.Context) []Currency {
 	// Bulk
 	var currencies []Currency
 	if len(keys) > 0 {
-		currencies = state.GetBulkStateDefault[Currency](ctx, keys, Currency{})
+		prefixed := make([]string, len(keys))
+		for i, k := range keys {
+			prefixed[i] = currencyPrefix + k
+		}
+		currencies = state.GetBulkStateDefault[Currency](ctx, prefixed, Currency{})
 	} else {
 		currencies = make([]Currency, len(keys))
 	}

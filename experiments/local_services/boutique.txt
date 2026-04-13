@@ -1,0 +1,8 @@
+cart http://localhost:4101
+checkout http://localhost:4102
+currency http://localhost:4103
+email http://localhost:4104
+payment http://localhost:4105
+productcatalog http://localhost:4106
+recommendations http://localhost:4107
+shipping http://localhost:4108

@@ -8,23 +8,25 @@ import (
 
 var CatalogSize = 1000
 
+const productPrefix = "product:"
+const productKeysListKey = "product:KEYS"
+
 func AddProduct(ctx context.Context, product Product) string {
-	keys, err := state.GetState[[]string](ctx, "KEYS")
+	keys, err := state.GetState[[]string](ctx, productKeysListKey)
 	if err != nil {
-		// fmt.Println("empty db")
+		// empty db
 	}
 	keys = append(keys, product.Id)
-	state.SetState(ctx, "KEYS", keys)
-	state.SetState(ctx, product.Id, product)
+	state.SetState(ctx, productKeysListKey, keys)
+	state.SetState(ctx, productPrefix+product.Id, product)
 	return product.Id
 }
 
 func AddProducts(ctx context.Context, products []Product) {
-	keys, err := state.GetState[[]string](ctx, "KEYS")
+	keys, err := state.GetState[[]string](ctx, productKeysListKey)
 	if err != nil {
-		// fmt.Println("empty db")
+		// empty db
 	}
-	// If keys are 100 then we don't want to add more to the catalog
 	if len(keys) < CatalogSize {
 		rest := CatalogSize - len(keys)
 		if len(products) < rest {
@@ -33,19 +35,19 @@ func AddProducts(ctx context.Context, products []Product) {
 		for i := 0; i < rest; i++ {
 			keys = append(keys, products[i].Id)
 		}
-		state.SetState(ctx, "KEYS", keys)
+		state.SetState(ctx, productKeysListKey, keys)
 	}
 
 	productMap := make(map[string]interface{})
 	for _, product := range products {
-		productMap[product.Id] = product
+		productMap[productPrefix+product.Id] = product
 	}
 	state.SetBulkState(ctx, productMap)
 	return
 }
 
 func GetProduct(ctx context.Context, Id string) Product {
-	product, err := state.GetState[Product](ctx, Id)
+	product, err := state.GetState[Product](ctx, productPrefix+Id)
 	if err != nil {
 		panic(err)
 	}
@@ -54,17 +56,16 @@ func GetProduct(ctx context.Context, Id string) Product {
 
 func SearchProducts(ctx context.Context, name string) []Product {
 	products := make([]Product, 0)
-	keys, err := state.GetState[[]string](ctx, "KEYS")
+	keys, err := state.GetState[[]string](ctx, productKeysListKey)
 	if err != nil {
 		panic(err)
 	}
 	for _, id := range keys {
-		product, err := state.GetState[Product](ctx, id)
+		product, err := state.GetState[Product](ctx, productPrefix+id)
 		if err != nil {
 			panic(err)
 		}
-		if strings.Contains(strings.ToLower(product.Name), strings.ToLower(name)) ||
-			strings.Contains(strings.ToLower(product.Name), strings.ToLower(name)) {
+		if strings.Contains(strings.ToLower(product.Name), strings.ToLower(name)) {
 			products = append(products, product)
 		}
 	}
@@ -72,29 +73,23 @@ func SearchProducts(ctx context.Context, name string) []Product {
 }
 
 func FetchCatalog(ctx context.Context, catalogSize int) []Product {
-	keys, err := state.GetState[[]string](ctx, "KEYS")
+	keys, err := state.GetState[[]string](ctx, productKeysListKey)
 	if err != nil {
 		panic(err)
 	}
 
-	// Limit fetches to the catalog size
 	if catalogSize < len(keys) {
 		keys = keys[:catalogSize]
 	}
-	// Bulk
 	var products []Product
 	if len(keys) > 0 {
-		products = state.GetBulkStateDefault[Product](ctx, keys, Product{})
+		prefixed := make([]string, len(keys))
+		for i, k := range keys {
+			prefixed[i] = productPrefix + k
+		}
+		products = state.GetBulkStateDefault[Product](ctx, prefixed, Product{})
 	} else {
 		products = make([]Product, len(keys))
 	}
-	// Prior non-bulk implementation
-	//for _, id := range keys {
-	//	product, err := state.GetState[Product](ctx, id)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	products = append(products, product)
-	//}
 	return products
 }

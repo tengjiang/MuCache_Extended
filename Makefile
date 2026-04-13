@@ -4,10 +4,11 @@ BINDIR  = bin
 
 CHAIN_SERVICES = service1 service2 service3 service4 backend
 HOTEL_SERVICES = frontend search rate profile reservation user
+BOUTIQUE_SERVICES = frontend cart checkout currency email payment product_catalog recommendations shipping
 
-.PHONY: all chain hotel clean
+.PHONY: all chain hotel boutique clean
 
-all: chain hotel
+all: chain hotel boutique
 
 # ── chain benchmark ────────────────────────────────────────────────────────────
 
@@ -36,6 +37,20 @@ $(BINDIR)/hotel_%_nocm:
 $(BINDIR)/hotel_%_flame:
 	@mkdir -p $(BINDIR)
 	$(GO) build $(GOFLAGS) -tags flame -o $@ ./cmd/hotel/$*
+
+# ── boutique benchmark ─────────────────────────────────────────────────────────
+
+boutique: $(addprefix $(BINDIR)/boutique_,\
+	$(addsuffix _nocm,  $(BOUTIQUE_SERVICES)) \
+	$(addsuffix _flame, $(BOUTIQUE_SERVICES)))
+
+$(BINDIR)/boutique_%_nocm:
+	@mkdir -p $(BINDIR)
+	$(GO) build $(GOFLAGS) -o $@ ./cmd/boutique/$*
+
+$(BINDIR)/boutique_%_flame:
+	@mkdir -p $(BINDIR)
+	$(GO) build $(GOFLAGS) -tags flame -o $@ ./cmd/boutique/$*
 
 clean:
 	rm -rf $(BINDIR)

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DKW2/MuCache_Extended/internal/boutique"
-	"github.com/DKW2/MuCache_Extended/pkg/cm"
+	"github.com/DKW2/MuCache_Extended/pkg/common"
+	"github.com/DKW2/MuCache_Extended/pkg/flame"
 	"github.com/DKW2/MuCache_Extended/pkg/wrappers"
 	"net/http"
+	"os"
 	"runtime"
 )
 
@@ -27,14 +29,26 @@ func charge(ctx context.Context, req *boutique.ChargeRequest) *boutique.ChargeRe
 	return &resp
 }
 
+func chargeFlame(req boutique.ChargeRequest) boutique.ChargeResponse {
+	return *charge(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(8))
-	for i := 0; i < 1; i++ {  // Adjust worker count based on experiments
-		go cm.ZmqProxy()
+	if common.FLAME {
+		flame.StartServer(flame.HandlerRegistry{
+			"charge": flame.WrapHandler(chargeFlame),
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "4105"
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/charge", wrappers.NonROWrapper[boutique.ChargeRequest, boutique.ChargeResponse](charge))
-	err := http.ListenAndServe(":3000", nil)
+	fmt.Printf("payment listening on :%s\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}
