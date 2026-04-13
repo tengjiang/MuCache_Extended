@@ -3,11 +3,10 @@
 #
 # Topology:
 #   client → frontend:4100
-#   frontend → currency:4103, cart:4101, productcatalog:4106, checkout:4102
+#   frontend → currency, cart, productcatalog, checkout
 #   checkout → productcatalog, currency, cart, shipping, payment, email
-#   recommendations → productcatalog  (independent; no upstream)
-#
-# All services share Redis at localhost:6379.
+#   recommendations → productcatalog  (independent)
+#   All services share Redis at localhost:6379.
 #
 # Usage:
 #   ./scripts/local/start_boutique.sh              # HTTP baseline
@@ -64,8 +63,8 @@ start_daemon() {
     "$FLAME_BIN" \
         --channel-name "$ch" \
         --msg-size 2048 \
-        --window-size 512 \
-        --blocking \
+        --capacity 256 \
+        --doorbell \
         --ready-path "$FLAME_READY_DIR/flame_${ch}.ready" \
         > "$LOGS/flame_daemon_${ch}.log" 2>&1 &
 }
@@ -83,34 +82,37 @@ fi
 redis-cli flushall >/dev/null
 log "Redis OK"
 
-# ── flame daemons ──────────────────────────────────────────────────────────────
-# frontend downstreams: fe_currency, fe_cart, fe_productcatalog, fe_checkout (4)
-# checkout downstreams: co_productcatalog, co_currency, co_cart, co_shipping, co_payment, co_email (6)
-# recommendations downstream: rec_productcatalog (1)
-# Total: 11 bidirectional channels.
+# ── flame channels (rpc_api: each pair needs separate _req + _resp daemons) ──
+# Bidirectional logical channels:
+#   frontend → currency, cart, productcatalog, checkout       (4)
+#   checkout → productcatalog, currency, cart, shipping, payment, email  (6)
+#   recommendations → productcatalog                          (1)
+# Total: 11 pairs × 2 = 22 daemons
 
 CHANNELS="fe_currency fe_cart fe_productcatalog fe_checkout \
 co_productcatalog co_currency co_cart co_shipping co_payment co_email \
 rec_productcatalog"
 
 if [[ "$MODE" == "flame" ]]; then
-    log "Starting flame daemons (11 bidirectional channels)..."
+    log "Starting flame daemons (22 channels: 11 pairs × req+resp)..."
     for ch in $CHANNELS; do
-        start_daemon "$ch"
-        log "  daemon for $ch"
+        for dir in req resp; do
+            start_daemon "${ch}_${dir}"
+        done
     done
     for ch in $CHANNELS; do
-        wait_file "$FLAME_READY_DIR/flame_${ch}.ready" "daemon_${ch}"
+        for dir in req resp; do
+            wait_file "$FLAME_READY_DIR/flame_${ch}_${dir}.ready" "daemon_${ch}_${dir}"
+        done
     done
 fi
 
 SUFFIX="nocm"
 [[ "$MODE" == "flame" ]] && SUFFIX="flame"
 
-# ── start services (leaves first, so the others find them on HTTP) ────────────
+# ── start services (leaves first) ─────────────────────────────────────────────
 log "Starting boutique services (mode=$MODE)..."
 
-# ─── leaf services (upstream-only) ─────────────────────────────────────────────
 env PORT=4101 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="cart" \
     FLAME_UPSTREAMS="fe_cart,co_cart" \
     "$BIN/boutique_cart_${SUFFIX}" > "$LOGS/cart.log" 2>&1 &
@@ -141,14 +143,12 @@ env PORT=4108 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="shipping" \
     "$BIN/boutique_shipping_${SUFFIX}" > "$LOGS/shipping.log" 2>&1 &
 log "  shipping        → :4108  (upstream=co_shipping)"
 
-# ─── recommendations (downstream=productcatalog, no upstream from others) ─────
 env PORT=4107 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="recommendations" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     FLAME_CHANNELS_FILE="$REPO_ROOT/experiments/local_flame/boutique_recommendations.txt" \
     "$BIN/boutique_recommendations_${SUFFIX}" > "$LOGS/recommendations.log" 2>&1 &
 log "  recommendations → :4107  (downstream=productcatalog)"
 
-# ─── checkout (many downstreams, one upstream from frontend) ──────────────────
 env PORT=4102 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="checkout" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     FLAME_UPSTREAM="fe_checkout" \
@@ -156,24 +156,16 @@ env PORT=4102 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="checkout" \
     "$BIN/boutique_checkout_${SUFFIX}" > "$LOGS/checkout.log" 2>&1 &
 log "  checkout        → :4102  (upstream=fe_checkout, downstream=pc,currency,cart,shipping,payment,email)"
 
-# ─── frontend (HTTP in, flame out to 4 downstreams) ───────────────────────────
 env PORT=4100 REDIS_URL="localhost:6379" APP_NAME_NO_UNDERSCORES="frontend" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     FLAME_CHANNELS_FILE="$REPO_ROOT/experiments/local_flame/boutique_frontend.txt" \
     "$BIN/boutique_frontend_${SUFFIX}" > "$LOGS/frontend.log" 2>&1 &
 log "  frontend        → :4100  (downstream=currency,cart,productcatalog,checkout)"
 
-# ── wait for heartbeats ───────────────────────────────────────────────────────
 log "Waiting for services..."
-wait_http http://localhost:4100/heartbeat "frontend"
-wait_http http://localhost:4101/heartbeat "cart"
-wait_http http://localhost:4102/heartbeat "checkout"
-wait_http http://localhost:4103/heartbeat "currency"
-wait_http http://localhost:4104/heartbeat "email"
-wait_http http://localhost:4105/heartbeat "payment"
-wait_http http://localhost:4106/heartbeat "product_catalog"
-wait_http http://localhost:4107/heartbeat "recommendations"
-wait_http http://localhost:4108/heartbeat "shipping"
+for port in 4100 4101 4102 4103 4104 4105 4106 4107 4108; do
+    wait_http "http://localhost:$port/heartbeat" "port $port"
+done
 
 log ""
 log "All services up! (mode=$MODE)"
@@ -183,7 +175,7 @@ log "  go run ./cmd/boutiquepopulate/"
 log ""
 log "Benchmark (example — /ro_home):"
 log "  oha -n 1000 -c 20 -m POST -H 'Content-Type: application/json' \\"
-log "    -d '{\"user_id\":\"user_0\",\"user_currency\":\"USD\"}' \\"
+log "    -d '{\"user_id\":\"user_0\",\"catalog_size\":10}' \\"
 log "    http://localhost:4100/ro_home"
 log ""
 log "Logs: $LOGS/"
