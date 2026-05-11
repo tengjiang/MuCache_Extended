@@ -21,7 +21,7 @@ FRONTEND_URL="http://$N1_PUBLIC_IP:4000"
 USER_URL="http://$N1_PUBLIC_IP:4005"
 
 SUMMARY="$OUTDIR/summary.csv"
-echo "mode,concurrency,requests,p50_secs,p95_secs,p99_secs,rps,success_rate" > "$SUMMARY"
+echo "mode,concurrency,requests,p50_secs,p95_secs,p99_secs,rps,success_rate,redis_ops_per_sec,redis_cpu_util" > "$SUMMARY"
 
 log "hotel sweep: modes=${MODES[*]}  c=${CONCURRENCIES[*]}  n=$N_REQUESTS  runs=$RUNS  → $OUTDIR"
 
@@ -30,12 +30,33 @@ log "hotel sweep: modes=${MODES[*]}  c=${CONCURRENCIES[*]}  n=$N_REQUESTS  runs=
 run_and_avg() {
     local mode="$1" c="$2"; shift 2
     local files=()
+    local pre_snap=$(redis_snapshot)
+    local t0=$(date +%s.%N)
     for r in $(seq 1 "$RUNS"); do
         local out_file="$OUTDIR/${mode}_c${c}_run${r}.txt"
         log "  run $r/$RUNS  n=$N_REQUESTS c=$c..."
         oha -n "$N_REQUESTS" -c "$c" "$@" > "$out_file" 2>&1 || true
         files+=("$out_file")
     done
+    local t1=$(date +%s.%N)
+    local post_snap=$(redis_snapshot)
+    local redis_stats
+    redis_stats=$(python3 - "$pre_snap" "$post_snap" "$t0" "$t1" <<'PYEOF'
+import sys
+pre = sys.argv[1].split(',')
+post = sys.argv[2].split(',')
+dt = float(sys.argv[4]) - float(sys.argv[3])
+try:
+    d_cmd = float(post[0]) - float(pre[0])
+    d_user = float(post[2]) - float(pre[2])
+    d_sys = float(post[3]) - float(pre[3])
+    ops_per_sec = d_cmd / dt if dt > 0 else 0
+    cpu_util = (d_user + d_sys) / dt if dt > 0 else 0
+    print(f"{ops_per_sec:.0f},{cpu_util:.3f}")
+except Exception:
+    print("0,0")
+PYEOF
+)
     local result
     result=$(python3 - "${files[@]}" <<'PYEOF'
 import sys, re
@@ -62,9 +83,12 @@ PYEOF
 )
     local p50 p95 p99 rps succ
     IFS=',' read -r p50 p95 p99 rps succ <<< "$result"
-    echo "$mode,$c,$N_REQUESTS,$p50,$p95,$p99,$rps,$succ" >> "$SUMMARY"
-    printf "    [%s c=%-3d] p50=%s  p95=%s  p99=%s  rps=%s  succ=%s\n" \
-        "$mode" "$c" "${p50:-?}" "${p95:-?}" "${p99:-?}" "${rps:-?}" "${succ:-?}"
+    local r_ops r_cpu
+    IFS=',' read -r r_ops r_cpu <<< "$redis_stats"
+    echo "$mode,$c,$N_REQUESTS,$p50,$p95,$p99,$rps,$succ,$r_ops,$r_cpu" >> "$SUMMARY"
+    printf "    [%s c=%-3d] p50=%s  p95=%s  p99=%s  rps=%s  succ=%s  redis=%s ops/s (%.0f%% core)\n" \
+        "$mode" "$c" "${p50:-?}" "${p95:-?}" "${p99:-?}" "${rps:-?}" "${succ:-?}" \
+        "${r_ops:-?}" "$(awk "BEGIN{print ($r_cpu)*100}")"
 }
 
 for MODE in "${MODES[@]}"; do

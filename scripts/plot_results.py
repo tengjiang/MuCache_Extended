@@ -164,24 +164,36 @@ def make_figure(outdir):
 
 
 def plot_tput_latency(outdir, dfs):
-    """Latency (p50 + p99) vs throughput — the classic systems curve."""
+    """Latency (p50 + p99) vs throughput — the classic systems curve.
+
+    Both axes are anchored at (0, 0): each curve gets a synthetic (0, 0)
+    anchor and axes are forced to start at the origin so the plot
+    accurately conveys "no load → no latency, no throughput."
+    """
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=False)
-    fig.suptitle("Latency vs Throughput: flame vs http  (distributed, 150 000 req × 3 runs averaged)",
+    fig.suptitle("Latency vs Throughput: flame vs http  (distributed)",
                  fontsize=11)
 
     for ax, (key, title, _), df in zip(axes, BENCHMARKS, dfs):
         if df.empty:
             continue
+        x_max = 0.0
+        y_max = 0.0
         for mode in ("nocm", "flame"):
             sub = df[df["mode"] == mode].sort_values("rps")
+            if sub.empty:
+                continue
             style = STYLE[mode]
-            # p50 — solid line
-            ax.plot(sub["rps"], sub["p50_secs"] * LAT_SCALE,
+            xs = [0.0] + list(sub["rps"])
+            p50 = [0.0] + list(sub["p50_secs"] * LAT_SCALE)
+            p99 = [0.0] + list(sub["p99_secs"] * LAT_SCALE)
+            x_max = max(x_max, max(xs))
+            y_max = max(y_max, max(p99))
+            ax.plot(xs, p50,
                     label=f"{'http' if mode=='nocm' else 'flame'} p50",
                     color=style["color"], marker=style["marker"],
                     linestyle="-", linewidth=2, markersize=6)
-            # p99 — dotted, same colour, slightly faded
-            ax.plot(sub["rps"], sub["p99_secs"] * LAT_SCALE,
+            ax.plot(xs, p99,
                     label=f"{'http' if mode=='nocm' else 'flame'} p99",
                     color=style["color"], marker=style["marker"],
                     linestyle=":", linewidth=1.5, markersize=5, alpha=0.55)
@@ -191,7 +203,9 @@ def plot_tput_latency(outdir, dfs):
         ax.set_ylabel("Latency (ms)", fontsize=9)
         ax.grid(True, linestyle=":", alpha=0.6)
         ax.tick_params(labelsize=8)
-        # format x-axis with K suffix
+        # Force (0,0) origin with a small headroom margin (5%).
+        ax.set_xlim(0, x_max * 1.05 if x_max > 0 else 1)
+        ax.set_ylim(0, y_max * 1.10 if y_max > 0 else 1)
         ax.xaxis.set_major_formatter(
             ticker.FuncFormatter(lambda x, _: f"{x/1000:.0f}K" if x >= 1000 else f"{x:.0f}")
         )
