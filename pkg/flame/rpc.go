@@ -100,14 +100,15 @@ type RpcClient struct {
 }
 
 // RpcWindowSize is the per-side buffer count. Must satisfy
-// `window_size <= 2 * queue_capacity` (the TCS assertion), which caps it at
-// 512 for the default queue_capacity_shift=8.
+// `window_size <= 2 * queue_capacity` (the TCS assertion). flame-benchmark's
+// `shared_memory_queue_capacity_shift` is bumped from 8 → 11 on this branch,
+// giving queue_capacity = 2048 and a window_size ceiling of 4096.
 //
-// Setting window_size >= 2x queue_capacity gives the request-buffer cursor a
-// full queue's worth of margin before wrapping — by the time the client's
-// cursor returns to slot i, the daemon has already consumed far more than
-// queue_capacity messages after slot i, so slot i is safely free.
-const RpcWindowSize = 512
+// We set window_size = 2 * queue_capacity so the client's request-buffer
+// cursor has a full queue worth of margin before wrapping. Bigger window =
+// more in-flight RPCs per hop before flame.Send() backpressures, which is
+// what keeps the open-loop curve from cliff-collapsing at high rates.
+const RpcWindowSize = 4096
 
 // NewRpcClient connects to an existing bidirectional channel.
 func NewRpcClient(name string) (*RpcClient, error) {

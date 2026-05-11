@@ -37,7 +37,10 @@ MODES=(${MODES:-nocm flame})
 # ── benchmark-specific config ────────────────────────────────────────────────
 case "$BENCH" in
 chain)
-    DEFAULT_RATES="250 500 1000 2000 3000 4000 6000 8000 10000 12000 14000 17000 20000 25000 30000"
+    # Different rate ceilings per mode: nocm caps at ~26K rps; flame (with
+    # the bumped queue capacity, window=4096) reaches much higher.
+    DEFAULT_RATES_NOCM="250 500 1000 2000 3000 4000 6000 8000 10000 12000 14000 17000 20000 25000 30000"
+    DEFAULT_RATES_FLAME="500 1000 2000 4000 8000 12000 16000 20000 25000 30000 35000 40000 50000 60000 75000"
     FRONTEND_URL="http://$N1_PUBLIC_IP:3001"
     START_SCRIPT="start_chain_N1.sh"
     POPULATE_FN() {
@@ -73,7 +76,8 @@ chain)
     ;;
 
 boutique)
-    DEFAULT_RATES="250 500 1000 2000 3000 4000 5000 6000 7000 8000 10000 12000 15000 18000 22000"
+    DEFAULT_RATES_NOCM="250 500 1000 2000 3000 4000 5000 6000 7000 8000 10000 12000 15000 18000 22000"
+    DEFAULT_RATES_FLAME="500 1000 2000 4000 6000 8000 10000 12000 15000 18000 22000 26000 30000 35000 40000"
     FRONTEND_URL="http://$N1_PUBLIC_IP:4100"
     CART_URL="http://$N1_PUBLIC_IP:4101"
     PRODUCT_URL="http://$N1_PUBLIC_IP:4106"
@@ -116,7 +120,9 @@ EOF_BODY
     ;;
 
 hotel)
-    DEFAULT_RATES="100 200 500 1000 1500 2000 2500 3000 4000 5000 6000 7000 8000 9000 10000"
+    # Hotel is Redis-bound: both modes saturate at the same ~9 K rps ceiling.
+    DEFAULT_RATES_NOCM="100 200 500 1000 1500 2000 2500 3000 4000 5000 6000 7000 8000 9000 10000"
+    DEFAULT_RATES_FLAME="$DEFAULT_RATES_NOCM"
     FRONTEND_URL="http://$N1_PUBLIC_IP:4000"
     USER_URL="http://$N1_PUBLIC_IP:4005"
     START_SCRIPT="start_hotel_N1.sh"
@@ -156,7 +162,8 @@ hotel)
 *) echo "Unknown BENCH=$BENCH"; exit 1 ;;
 esac
 
-RATES=(${RATES:-$DEFAULT_RATES})
+# Global RATES still wins (so smoke tests like "RATES=500 ..." work), otherwise
+# pick the per-mode list inside the loop.
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUTDIR="${OUTDIR:-$REPO_ROOT/results/${BENCH}_mix_${STAMP}}"
 mkdir -p "$OUTDIR"
@@ -164,7 +171,7 @@ mkdir -p "$OUTDIR"
 SUMMARY="$OUTDIR/summary.csv"
 echo "mode,target_rate,actual_rps,p50_secs,p95_secs,p99_secs,success_rate,redis_ops_per_sec,redis_cpu_util" > "$SUMMARY"
 
-log "${BENCH} MIX sweep: modes=${MODES[*]}  rates=${RATES[*]}  dur=$DURATION  runs=$RUNS  → $OUTDIR"
+log "${BENCH} MIX sweep: modes=${MODES[*]}  dur=$DURATION  runs=$RUNS  → $OUTDIR"
 
 # ── per-point runner: rate-based open-loop with redis bracketing ──────────────
 run_point() {
@@ -252,7 +259,16 @@ for MODE in "${MODES[@]}"; do
         > /dev/null 2>&1 || true
     sleep 1
 
-    for rate in "${RATES[@]}"; do
+    # Pick rate list: explicit RATES env override beats per-mode default.
+    if [[ -n "${RATES:-}" ]]; then
+        MODE_RATES=($RATES)
+    elif [[ "$MODE" == "flame" ]]; then
+        MODE_RATES=($DEFAULT_RATES_FLAME)
+    else
+        MODE_RATES=($DEFAULT_RATES_NOCM)
+    fi
+    log "  rates: ${MODE_RATES[*]}"
+    for rate in "${MODE_RATES[@]}"; do
         log "  rate=$rate/s ..."
         run_point "$MODE" "$rate" "$targets_file"
     done

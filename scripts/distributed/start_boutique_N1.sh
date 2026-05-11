@@ -58,7 +58,7 @@ start_daemon() {
     "$FLAME_BIN" \
         --channel-name "$ch" \
         --msg-size 2048 \
-        --window-size 512 \
+        --window-size 4096 \
         --blocking \
         --ready-path "$FLAME_READY_DIR/flame_${ch}.ready" \
         > "$LOGS/flame_daemon_${ch}.log" 2>&1 &

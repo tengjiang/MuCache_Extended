@@ -69,7 +69,7 @@ if [[ "$MODE" == "flame" ]]; then
         "$FLAME_BIN" \
             --channel-name "$hop" \
             --msg-size 2048 \
-            --window-size 512 \
+            --window-size 4096 \
             --blocking \
             --ready-path "$FLAME_READY_DIR/flame_${hop}.ready" \
             > "$LOGS/flame_daemon_${hop}.log" 2>&1 &
