@@ -1,11 +1,17 @@
 #!/bin/bash
 # Throughput–latency sweep for hotel (distributed N0/N1/N2).
+# Each (mode, concurrency) point is run RUNS times and averaged.
 # Endpoint: /ro_search_hotels.
 set -e
+
+# Set sweep-specific defaults BEFORE sourcing env.sh, which would otherwise
+# export N_REQUESTS=3000 (its quick-run default) and shadow our value.
+: "${N_REQUESTS:=150000}"
+: "${RUNS:=3}"
+
 source "$(dirname "$0")/env.sh"
 
 MODES=(${MODES:-nocm flame})
-N_REQUESTS="${N_REQUESTS:-100000}"
 CONCURRENCIES=(${CONCURRENCIES:-25 50 75 100 125 150 175 200})
 
 OUTDIR="${OUTDIR:-$REPO_ROOT/results/hotel_distributed}"
@@ -17,19 +23,45 @@ USER_URL="http://$N1_PUBLIC_IP:4005"
 SUMMARY="$OUTDIR/summary.csv"
 echo "mode,concurrency,requests,p50_secs,p95_secs,p99_secs,rps,success_rate" > "$SUMMARY"
 
-log "hotel sweep: modes=${MODES[*]}  c=${CONCURRENCIES[*]}  n=$N_REQUESTS  → $OUTDIR"
+log "hotel sweep: modes=${MODES[*]}  c=${CONCURRENCIES[*]}  n=$N_REQUESTS  runs=$RUNS  → $OUTDIR"
 
-parse_and_append() {
-    local mode="$1" c="$2" file="$3"
+# ── helper: run oha RUNS times, average metrics, append row to summary ────────
+# Usage: run_and_avg <mode> <concurrency> <oha-args...>
+run_and_avg() {
+    local mode="$1" c="$2"; shift 2
+    local files=()
+    for r in $(seq 1 "$RUNS"); do
+        local out_file="$OUTDIR/${mode}_c${c}_run${r}.txt"
+        log "  run $r/$RUNS  n=$N_REQUESTS c=$c..."
+        oha -n "$N_REQUESTS" -c "$c" "$@" > "$out_file" 2>&1 || true
+        files+=("$out_file")
+    done
+    local result
+    result=$(python3 - "${files[@]}" <<'PYEOF'
+import sys, re
+files = sys.argv[1:]
+vals = {'p50': [], 'p95': [], 'p99': [], 'rps': [], 'succ': []}
+ansi = re.compile(r'\x1b\[[0-9;]*[mGKHF]|\x1b\[?[0-9]*[lh]')
+for f in files:
+    text = ansi.sub('', open(f).read())
+    for line in text.splitlines():
+        s = line.strip()
+        m = re.match(r'50\.00%\s+in\s+(\S+)', s)
+        if m: vals['p50'].append(float(m.group(1)))
+        m = re.match(r'95\.00%\s+in\s+(\S+)', s)
+        if m: vals['p95'].append(float(m.group(1)))
+        m = re.match(r'99\.00%\s+in\s+(\S+)', s)
+        if m: vals['p99'].append(float(m.group(1)))
+        m = re.match(r'Requests/sec:\s+(\S+)', s)
+        if m: vals['rps'].append(float(m.group(1)))
+        m = re.match(r'Success rate:\s+(\S+)', s)
+        if m: vals['succ'].append(m.group(1))
+def avg(k): return sum(vals[k])/len(vals[k]) if vals[k] else 0
+print(f"{avg('p50'):.4f},{avg('p95'):.4f},{avg('p99'):.4f},{avg('rps'):.4f},{vals['succ'][-1] if vals['succ'] else 'N/A'}")
+PYEOF
+)
     local p50 p95 p99 rps succ
-    local tmp; tmp=$(mktemp)
-    sed 's/\x1b\[[0-9;]*[mGKHF]//g; s/\x1b\[?[0-9]*[lh]//g' "$file" > "$tmp"
-    p50=$(awk '/50\.00%/ {print $3; exit}' "$tmp")
-    p95=$(awk '/95\.00%/ {print $3; exit}' "$tmp")
-    p99=$(awk '/99\.00%/ {print $3; exit}' "$tmp")
-    rps=$(awk '/Requests\/sec/ {print $2; exit}' "$tmp")
-    succ=$(awk '/Success rate/ {print $3; exit}' "$tmp")
-    rm -f "$tmp"
+    IFS=',' read -r p50 p95 p99 rps succ <<< "$result"
     echo "$mode,$c,$N_REQUESTS,$p50,$p95,$p99,$rps,$succ" >> "$SUMMARY"
     printf "    [%s c=%-3d] p50=%s  p95=%s  p99=%s  rps=%s  succ=%s\n" \
         "$mode" "$c" "${p50:-?}" "${p95:-?}" "${p99:-?}" "${rps:-?}" "${succ:-?}"
@@ -50,6 +82,7 @@ for MODE in "${MODES[@]}"; do
     bash "$REPO_ROOT/scripts/local/populate_hotel.sh" "$FRONTEND_URL" "$USER_URL" 100 20 > /dev/null
     sleep 2
 
+    log "Warming up..."
     oha -n 1000 -c 20 -m POST --no-tui \
         -H 'Content-Type: application/json' \
         -d '{"in_date":"2024-01-01","out_date":"2024-01-02","location":"city0"}' \
@@ -57,13 +90,11 @@ for MODE in "${MODES[@]}"; do
     sleep 2
 
     for c in "${CONCURRENCIES[@]}"; do
-        out_file="$OUTDIR/${MODE}_c${c}.txt"
-        log "Running n=$N_REQUESTS c=$c..."
-        oha -n "$N_REQUESTS" -c "$c" -m POST --no-tui \
+        log "Concurrency $c ($RUNS runs)..."
+        run_and_avg "$MODE" "$c" -m POST --no-tui \
             -H 'Content-Type: application/json' \
             -d '{"in_date":"2024-01-01","out_date":"2024-01-02","location":"city0"}' \
-            "$FRONTEND_URL/ro_search_hotels" > "$out_file" 2>&1 || true
-        parse_and_append "$MODE" "$c" "$out_file"
+            "$FRONTEND_URL/ro_search_hotels"
     done
 
     ssh_n1 "bash $REPO_ROOT/scripts/distributed/stop_N1.sh" > /dev/null 2>&1 || true
