@@ -24,7 +24,7 @@
 set -e
 
 : "${RUNS:=1}"
-: "${DURATION:=4s}"
+: "${DURATION:=20s}"
 source "$(dirname "$0")/env.sh"
 
 # Need vegeta on $PATH. We install it to $HOME/bin in this branch.
@@ -37,10 +37,10 @@ MODES=(${MODES:-nocm flame})
 # ── benchmark-specific config ────────────────────────────────────────────────
 case "$BENCH" in
 chain)
-    # Different rate ceilings per mode: nocm caps at ~26K rps; flame (with
-    # the bumped queue capacity, window=4096) reaches much higher.
-    DEFAULT_RATES_NOCM="250 500 1000 2000 3000 4000 6000 8000 10000 12000 14000 17000 20000 25000 30000"
-    DEFAULT_RATES_FLAME="500 1000 2000 4000 8000 12000 16000 20000 25000 30000 35000 40000 50000 60000 75000"
+    # Fine-grained per-mode rate ladders, dense around the saturation knee
+    # so the latency-vs-throughput curve has shape there.
+    DEFAULT_RATES_NOCM="500 1000 2000 4000 6000 8000 10000 12000 14000 16000 18000 20000 21000 22000 23000 24000 25000 26000 27000 28000 30000"
+    DEFAULT_RATES_FLAME="500 1000 2000 4000 6000 8000 10000 12000 14000 16000 18000 20000 22000 24000 26000 28000 30000 32000 34000"
     FRONTEND_URL="http://$N1_PUBLIC_IP:3001"
     START_SCRIPT="start_chain_N1.sh"
     POPULATE_FN() {
@@ -76,8 +76,8 @@ chain)
     ;;
 
 boutique)
-    DEFAULT_RATES_NOCM="250 500 1000 2000 3000 4000 5000 6000 7000 8000 10000 12000 15000 18000 22000"
-    DEFAULT_RATES_FLAME="500 1000 2000 4000 6000 8000 10000 12000 15000 18000 22000 26000 30000 35000 40000"
+    DEFAULT_RATES_NOCM="500 1000 2000 4000 6000 8000 10000 12000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000"
+    DEFAULT_RATES_FLAME="500 1000 2000 4000 6000 8000 10000 12000 14000 16000 18000 20000 21000 22000 23000 24000 26000"
     FRONTEND_URL="http://$N1_PUBLIC_IP:4100"
     CART_URL="http://$N1_PUBLIC_IP:4101"
     PRODUCT_URL="http://$N1_PUBLIC_IP:4106"
@@ -120,8 +120,9 @@ EOF_BODY
     ;;
 
 hotel)
-    # Hotel is Redis-bound: both modes saturate at the same ~9 K rps ceiling.
-    DEFAULT_RATES_NOCM="100 200 500 1000 1500 2000 2500 3000 4000 5000 6000 7000 8000 9000 10000"
+    # Hotel is Redis-bound: both modes saturate at the same ~9-10 K rps
+    # ceiling. Dense grid around the knee at ~7-9 K.
+    DEFAULT_RATES_NOCM="100 250 500 1000 1500 2000 2500 3000 3500 4000 4500 5000 5500 6000 6500 7000 7500 8000 8500 9000 9500 10000"
     DEFAULT_RATES_FLAME="$DEFAULT_RATES_NOCM"
     FRONTEND_URL="http://$N1_PUBLIC_IP:4000"
     USER_URL="http://$N1_PUBLIC_IP:4005"
