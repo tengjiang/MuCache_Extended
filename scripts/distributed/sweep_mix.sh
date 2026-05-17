@@ -51,12 +51,18 @@ chain)
         done
     }
     # 80% reads / 20% writes, 5-hop chain.
+    # READ_PCT (default 80) controls the read/write mix: 100=all reads,
+    # 0=all writes. The targets file gets READ_PCT/10 read lines and the
+    # rest write lines, so a clean 10-line round-robin still works.
+    : "${READ_PCT:=80}"
     build_targets() {
         local out="$1"
         : > "$out.read.body"; printf '{"k":1}' > "$out.read.body"
         : > "$out.write.body"; printf '{"k":1,"v":1}' > "$out.write.body"
         : > "$out"
-        for _ in 1 2 3 4 5 6 7 8; do  # 8/10 = 80% reads
+        local n_read=$(( READ_PCT / 10 ))
+        local n_write=$(( 10 - n_read ))
+        for _ in $(seq 1 $n_read); do
             {
                 echo "POST $FRONTEND_URL/ro_read"
                 echo "Content-Type: application/json"
@@ -64,7 +70,7 @@ chain)
                 echo ""
             } >> "$out"
         done
-        for _ in 1 2; do              # 2/10 = 20% writes
+        for _ in $(seq 1 $n_write); do
             {
                 echo "POST $FRONTEND_URL/write"
                 echo "Content-Type: application/json"
