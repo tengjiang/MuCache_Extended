@@ -28,10 +28,12 @@ const (
 	rpcBodyMax      = RpcMsgSize - rpcBodyOff
 )
 
+// rpcEncodeRequest writes the frame header + method + body into buf.
+// Only the bytes that are read by the decoder are overwritten: the 8-byte
+// header, the method (with an explicit null terminator), and the body
+// region [rpcBodyOff, rpcBodyOff+bl). The unused tail bytes are left
+// untouched — the receiver only reads body_len bytes from the header.
 func rpcEncodeRequest(buf []byte, id uint32, method string, body []byte) int {
-	for i := range buf {
-		buf[i] = 0
-	}
 	binary.LittleEndian.PutUint32(buf[0:4], id)
 	bl := len(body)
 	if bl > rpcBodyMax {
@@ -39,19 +41,21 @@ func rpcEncodeRequest(buf []byte, id uint32, method string, body []byte) int {
 	}
 	binary.LittleEndian.PutUint16(buf[4:6], uint16(bl))
 	buf[6] = rpcTypeRequest
+	buf[7] = 0 // reserved
 	ml := len(method)
 	if ml > rpcMethodLen-1 {
 		ml = rpcMethodLen - 1
 	}
 	copy(buf[rpcMethodOff:], method[:ml])
+	buf[rpcMethodOff+ml] = 0 // null-terminate method (needed when buf is reused)
 	copy(buf[rpcBodyOff:], body[:bl])
 	return rpcBodyOff + bl
 }
 
+// rpcEncodeResponse: like Request but with no method field. No full-frame
+// memset for the same reason — the decoder reads exactly body_len bytes
+// of body.
 func rpcEncodeResponse(buf []byte, id uint32, body []byte) int {
-	for i := range buf {
-		buf[i] = 0
-	}
 	binary.LittleEndian.PutUint32(buf[0:4], id)
 	bl := len(body)
 	if bl > rpcBodyMax {
@@ -59,6 +63,7 @@ func rpcEncodeResponse(buf []byte, id uint32, body []byte) int {
 	}
 	binary.LittleEndian.PutUint16(buf[4:6], uint16(bl))
 	buf[6] = rpcTypeResponse
+	buf[7] = 0 // reserved
 	copy(buf[rpcBodyOff:], body[:bl])
 	return rpcBodyOff + bl
 }
@@ -79,6 +84,17 @@ func rpcDecodeBody(buf []byte) []byte {
 	out := make([]byte, bl)
 	copy(out, buf[rpcBodyOff:rpcBodyOff+bl])
 	return out
+}
+
+// responseBufPool reuses RpcMsgSize-sized scratch buffers for encoding
+// server responses, eliminating an allocation per RPC. Each handler
+// goroutine Gets a buffer, encodes, Sends (which copies into shm), then
+// Puts the buffer back.
+var responseBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, RpcMsgSize)
+		return &b
+	},
 }
 
 // ── RpcClient ────────────────────────────────────────────────────────────────
@@ -205,12 +221,18 @@ func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
 
 			go func() {
 				respBody := handler(method, body)
-				buf := make([]byte, RpcMsgSize)
+
+				// Reuse a pooled RpcMsgSize-sized scratch instead of allocating per response.
+				bufp := responseBufPool.Get().(*[]byte)
+				buf := *bufp
 				n := rpcEncodeResponse(buf, id, respBody)
 
 				s.muSend.Lock()
 				s.sv.Send(buf[:n])
 				s.muSend.Unlock()
+
+				// Send copied buf into shm; safe to return to pool now.
+				responseBufPool.Put(bufp)
 			}()
 		}
 	}()
