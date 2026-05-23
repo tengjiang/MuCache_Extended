@@ -85,11 +85,22 @@ func rpcDecodeMethod(buf []byte) string {
 	}
 	return string(buf[rpcMethodOff : rpcMethodOff+rpcMethodLen])
 }
+// rpcDecodeBody allocates a fresh []byte for the body. Kept for callers that
+// need an independent copy; the hot path uses rpcDecodeBodyView (no copy).
 func rpcDecodeBody(buf []byte) []byte {
 	bl := rpcDecodeBodyLen(buf)
 	out := make([]byte, bl)
 	copy(out, buf[rpcBodyOff:rpcBodyOff+bl])
 	return out
+}
+
+// rpcDecodeBodyView returns a slice aliasing the body bytes inside buf.
+// The caller must not retain the slice past the lifetime of buf — in the
+// flame fast path that's fine because the handler (server) or
+// json.Unmarshal (client) consumes the body synchronously.
+func rpcDecodeBodyView(buf []byte) []byte {
+	bl := rpcDecodeBodyLen(buf)
+	return buf[rpcBodyOff : rpcBodyOff+bl]
 }
 
 // responseBufPool reuses RpcMsgSize-sized scratch buffers for encoding
@@ -150,7 +161,7 @@ func NewRpcClient(name string) (*RpcClient, error) {
 				continue
 			}
 			id := rpcDecodeID(msg)
-			body := rpcDecodeBody(msg)
+			body := rpcDecodeBodyView(msg) // alias into msg; consumed before next Recv
 			if ch, ok := c.pending.Load(id); ok {
 				select {
 				case ch.(chan []byte) <- body:
@@ -225,7 +236,7 @@ func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
 			}
 			id := rpcDecodeID(msg)
 			method := rpcDecodeMethod(msg)
-			body := rpcDecodeBody(msg)
+			body := rpcDecodeBodyView(msg) // alias into msg; handler unmarshals synchronously
 
 			go func() {
 				t0 := time.Now()
