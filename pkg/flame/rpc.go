@@ -103,17 +103,6 @@ func rpcDecodeBodyView(buf []byte) []byte {
 	return buf[rpcBodyOff : rpcBodyOff+bl]
 }
 
-// responseBufPool reuses RpcMsgSize-sized scratch buffers for encoding
-// server responses, eliminating an allocation per RPC. Each handler
-// goroutine Gets a buffer, encodes, Sends (which copies into shm), then
-// Puts the buffer back.
-var responseBufPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, RpcMsgSize)
-		return &b
-	},
-}
-
 // ── RpcClient ────────────────────────────────────────────────────────────────
 
 // RpcClient wraps a Client with correlation-id based request/response
@@ -123,7 +112,6 @@ type RpcClient struct {
 	muSend  sync.Mutex // serialise Send (single-writer queue)
 	pending sync.Map   // id → chan []byte
 	nextID  atomic.Uint32
-	sendBuf []byte
 }
 
 // RpcWindowSize is the per-side buffer count. Must satisfy
@@ -145,23 +133,27 @@ func NewRpcClient(name string) (*RpcClient, error) {
 		return nil, fmt.Errorf("RpcClient: %w", err)
 	}
 
-	c := &RpcClient{
-		cl:      cl,
-		sendBuf: make([]byte, RpcMsgSize),
-	}
+	c := &RpcClient{cl: cl}
 
-	// Response dispatch goroutine — reads responses and routes by id.
+	// Response dispatch goroutine — reads each response in place from the
+	// shm slot, copies just the body_len bytes the caller needs, then
+	// releases the slot. The body_len copy is much smaller than the old
+	// msg_size scratch+fresh-[]byte copy pair.
 	go func() {
 		for {
-			msg, err := cl.Recv()
+			slot, release, err := cl.RecvInPlace()
 			if err != nil {
 				return
 			}
-			if len(msg) < rpcBodyOff {
+			if len(slot) < rpcBodyOff {
+				release()
 				continue
 			}
-			id := rpcDecodeID(msg)
-			body := rpcDecodeBodyView(msg) // alias into msg; consumed before next Recv
+			id := rpcDecodeID(slot)
+			view := rpcDecodeBodyView(slot) // aliases shm
+			body := make([]byte, len(view)) // small body-sized copy
+			copy(body, view)
+			release()
 			if ch, ok := c.pending.Load(id); ok {
 				select {
 				case ch.(chan []byte) <- body:
@@ -175,7 +167,9 @@ func NewRpcClient(name string) (*RpcClient, error) {
 }
 
 // Call sends a request and blocks until the matching response arrives.
-// Safe for concurrent use by multiple goroutines.
+// Safe for concurrent use by multiple goroutines. The request frame is
+// encoded directly into a shm slot — no Go-side send buffer, no C-side
+// memcpy from Go to shm.
 func (c *RpcClient) Call(method string, body []byte) ([]byte, error) {
 	id := c.nextID.Add(1)
 	ch := make(chan []byte, 1)
@@ -186,8 +180,9 @@ func (c *RpcClient) Call(method string, body []byte) ([]byte, error) {
 	c.muSend.Lock()
 	latency.Record("rpc_send_lock_wait", time.Since(t0))
 	t1 := time.Now()
-	n := rpcEncodeRequest(c.sendBuf, id, method, body)
-	err := c.cl.Send(c.sendBuf[:n])
+	err := c.cl.SendInPlace(func(slot []byte) int {
+		return rpcEncodeRequest(slot, id, method, body)
+	})
 	c.muSend.Unlock()
 	latency.Record("rpc_send", time.Since(t1))
 	if err != nil {
@@ -227,35 +222,35 @@ func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
 
 	go func() {
 		for {
-			msg, err := sv.Recv()
+			slot, release, err := sv.RecvInPlace()
 			if err != nil {
 				return
 			}
-			if len(msg) < rpcBodyOff {
+			if len(slot) < rpcBodyOff {
+				release()
 				continue
 			}
-			id := rpcDecodeID(msg)
-			method := rpcDecodeMethod(msg)
-			body := rpcDecodeBodyView(msg) // alias into msg; handler unmarshals synchronously
+			id := rpcDecodeID(slot)
+			method := rpcDecodeMethod(slot)
+			view := rpcDecodeBodyView(slot) // aliases shm
+			body := make([]byte, len(view)) // small body-sized copy so the slot can be released
+			copy(body, view)
+			release()
 
 			go func() {
 				t0 := time.Now()
 				respBody := handler(method, body)
 				latency.Record("rpc_server_handler", time.Since(t0))
 
-				// Reuse a pooled 2048-byte scratch instead of allocating per response.
-				bufp := responseBufPool.Get().(*[]byte)
-				buf := *bufp
-				n := rpcEncodeResponse(buf, id, respBody)
-
+				// Encode the response straight into a shm slot — no Go-side
+				// pooled buffer, no C-side memcpy from Go to shm.
 				t1 := time.Now()
 				s.muSend.Lock()
-				s.sv.Send(buf[:n])
+				s.sv.SendInPlace(func(slot []byte) int {
+					return rpcEncodeResponse(slot, id, respBody)
+				})
 				s.muSend.Unlock()
 				latency.Record("rpc_server_send", time.Since(t1))
-
-				// Send copied buf into shm; safe to return to pool now.
-				responseBufPool.Put(bufp)
 			}()
 		}
 	}()

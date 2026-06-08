@@ -89,6 +89,31 @@ int flame_client_recv(FlameClient* c, void* buf, size_t max_len, size_t* out_len
 
 void flame_client_destroy(FlameClient* c);
 
+/* ── Zero-copy slot API (client) ──────────────────────────────────────────
+ *
+ * Lets the caller write the outgoing message directly into a shm-backed
+ * slot, and read incoming messages in place, eliminating the Go↔shm
+ * memcpys that flame_client_send / flame_client_recv perform internally.
+ *
+ * Send lifecycle (per message):
+ *   1. void* slot = flame_client_alloc_slot(c);     // writable, msg_size bytes
+ *   2. ...fill up to msg_size bytes...
+ *   3. flame_client_commit_send(c, slot, len);      // enqueue (TCS sends full frame)
+ *
+ * Receive lifecycle (per message):
+ *   1. void* msg = flame_client_peek_recv(c, &len); // read in place
+ *   2. ...consume msg bytes...
+ *   3. flame_client_release(c, msg);                // return to pool
+ *
+ * The slot from alloc_slot is valid until commit_send. The msg from
+ * peek_recv is valid until release. Neither side is thread-safe — wrap
+ * with the same mutex that protects the channel.
+ */
+void* flame_client_alloc_slot (FlameClient* c);
+int   flame_client_commit_send(FlameClient* c, void* slot, size_t len);
+void* flame_client_peek_recv  (FlameClient* c, size_t* out_len);
+int   flame_client_release    (FlameClient* c, void* slot);
+
 /* ── Server ───────────────────────────────────────────────────────────────── */
 
 FlameServer* flame_server_connect(const char* name,
@@ -100,6 +125,14 @@ int flame_server_recv(FlameServer* s, void* buf, size_t max_len, size_t* out_len
 int flame_server_send(FlameServer* s, const void* buf, size_t len);
 
 void flame_server_destroy(FlameServer* s);
+
+/* ── Zero-copy slot API (server) ──────────────────────────────────────────
+ * Symmetric mirror of the client side; same lifecycle rules apply.
+ */
+void* flame_server_alloc_slot (FlameServer* s);
+int   flame_server_commit_send(FlameServer* s, void* slot, size_t len);
+void* flame_server_peek_recv  (FlameServer* s, size_t* out_len);
+int   flame_server_release    (FlameServer* s, void* slot);
 
 #ifdef __cplusplus
 }

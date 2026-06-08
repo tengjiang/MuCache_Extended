@@ -109,6 +109,43 @@ func (c *Client) Recv() ([]byte, error) {
 	return out, nil
 }
 
+// SendInPlace acquires a writable shm-backed slot, lets fill() write into
+// it, then commits and sends — eliminating the C-side Go-buffer → shm
+// memcpy that Send() performs. fill is called with a []byte aliasing the
+// shm slot (up to MsgSize bytes) and returns the number of bytes written.
+// Not thread-safe on its own; wrap with the same mutex you use for Send.
+func (c *Client) SendInPlace(fill func(slot []byte) int) error {
+	slotPtr := C.flame_client_alloc_slot(c.c)
+	if slotPtr == nil {
+		return fmt.Errorf("flame_client_alloc_slot")
+	}
+	slot := unsafe.Slice((*byte)(slotPtr), c.cfg.MsgSize)
+	n := fill(slot)
+	if n < 0 || n > c.cfg.MsgSize {
+		return fmt.Errorf("SendInPlace: fill returned %d (msg_size=%d)", n, c.cfg.MsgSize)
+	}
+	rc := C.flame_client_commit_send(c.c, slotPtr, C.size_t(n))
+	if rc != 0 {
+		return fmt.Errorf("flame_client_commit_send")
+	}
+	return nil
+}
+
+// RecvInPlace blocks until a message arrives, then returns a []byte
+// aliasing directly into the shm slot (no copy through a Go scratch
+// buffer). The caller MUST invoke release() before the slot can be
+// reused; after release() the returned slice is invalid. Not thread-safe.
+func (c *Client) RecvInPlace() (slot []byte, release func(), err error) {
+	var outLen C.size_t
+	slotPtr := C.flame_client_peek_recv(c.c, &outLen)
+	if slotPtr == nil {
+		return nil, nil, fmt.Errorf("flame_client_peek_recv")
+	}
+	slot = unsafe.Slice((*byte)(slotPtr), int(outLen))
+	release = func() { C.flame_client_release(c.c, slotPtr) }
+	return slot, release, nil
+}
+
 // Close releases the shm mapping.
 func (c *Client) Close() {
 	if c.c != nil {
@@ -151,6 +188,36 @@ func (s *Server) Recv() ([]byte, error) {
 	out := make([]byte, int(outLen))
 	copy(out, s.buf[:outLen])
 	return out, nil
+}
+
+// SendInPlace: server-side mirror of Client.SendInPlace.
+func (s *Server) SendInPlace(fill func(slot []byte) int) error {
+	slotPtr := C.flame_server_alloc_slot(s.s)
+	if slotPtr == nil {
+		return fmt.Errorf("flame_server_alloc_slot")
+	}
+	slot := unsafe.Slice((*byte)(slotPtr), s.cfg.MsgSize)
+	n := fill(slot)
+	if n < 0 || n > s.cfg.MsgSize {
+		return fmt.Errorf("SendInPlace: fill returned %d (msg_size=%d)", n, s.cfg.MsgSize)
+	}
+	rc := C.flame_server_commit_send(s.s, slotPtr, C.size_t(n))
+	if rc != 0 {
+		return fmt.Errorf("flame_server_commit_send")
+	}
+	return nil
+}
+
+// RecvInPlace: server-side mirror of Client.RecvInPlace.
+func (s *Server) RecvInPlace() (slot []byte, release func(), err error) {
+	var outLen C.size_t
+	slotPtr := C.flame_server_peek_recv(s.s, &outLen)
+	if slotPtr == nil {
+		return nil, nil, fmt.Errorf("flame_server_peek_recv")
+	}
+	slot = unsafe.Slice((*byte)(slotPtr), int(outLen))
+	release = func() { C.flame_server_release(s.s, slotPtr) }
+	return slot, release, nil
 }
 
 func (s *Server) Send(buf []byte) error {
