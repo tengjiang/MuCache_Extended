@@ -125,9 +125,16 @@ type RpcClient struct {
 // what keeps the open-loop curve from cliff-collapsing at high rates.
 const RpcWindowSize = 4096
 
-// NewRpcClient connects to an existing bidirectional channel.
+// NewRpcClient connects to an existing bidirectional channel using the
+// default backend (TCS). For other backends call NewRpcClientWithBackend.
 func NewRpcClient(name string) (*RpcClient, error) {
-	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
+	return NewRpcClientWithBackend(name, BackendTCS)
+}
+
+// NewRpcClientWithBackend connects with an explicit backend choice
+// (must match the daemon's --backend).
+func NewRpcClientWithBackend(name string, backend Backend) (*RpcClient, error) {
+	cfg := Config{Name: name, Backend: backend, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
 	cl, err := NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("RpcClient: %w", err)
@@ -210,10 +217,16 @@ type RpcServer struct {
 	muSend sync.Mutex
 }
 
-// NewRpcServer opens the channel and starts a goroutine that reads requests
-// and dispatches to handler. Each request handler runs in its own goroutine.
+// NewRpcServer opens the channel using the default backend (TCS) and
+// starts a goroutine that reads requests and dispatches to handler.
+// Each request handler runs in its own goroutine.
 func NewRpcServer(name string, handler Handler) (*RpcServer, error) {
-	cfg := Config{Name: name, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
+	return NewRpcServerWithBackend(name, BackendTCS, handler)
+}
+
+// NewRpcServerWithBackend opens the channel with an explicit backend.
+func NewRpcServerWithBackend(name string, backend Backend, handler Handler) (*RpcServer, error) {
+	cfg := Config{Name: name, Backend: backend, MsgSize: RpcMsgSize, WindowSize: RpcWindowSize, Blocking: true}
 	sv, err := NewServer(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("RpcServer: %w", err)

@@ -82,13 +82,14 @@ log "Redis OK"
 # hop3: service3 → service4
 # hop4: service4 → backend
 if [[ "$MODE" == "flame" ]]; then
-    log "Starting flame daemons (4 bidirectional channels, one per hop)..."
-    # tcs_api model: each channel name is bidirectional (req + resp inside one
-    # PeerSharedMemory pair). One daemon per hop does both directions.
+    log "Starting flame daemons (4 channels, backend=${FLAME_BACKEND:-tcs})..."
+    # TCS: each channel = 2 shm regions + a daemon copy loop.
+    # CQ / CQ0: each channel = 1 shm region; the daemon just creates it and idles.
     for hop in hop1 hop2 hop3 hop4; do
         ready_file="$FLAME_READY_DIR/flame_${hop}.ready"
         "$FLAME_BIN" \
             --channel-name "$hop" \
+            --backend "${FLAME_BACKEND:-tcs}" \
             --msg-size "${FLAME_MSG_SIZE:-2048}" \
             --window-size "${FLAME_WINDOW_SIZE:-4096}" \
             --blocking \
@@ -109,13 +110,17 @@ if [[ "$MODE" == "flame" ]]; then
 fi
 
 # ── start microservices ────────────────────────────────────────────────────────
-log "Starting microservices (mode=$MODE)..."
+log "Starting microservices (mode=$MODE, backend=${FLAME_BACKEND:-tcs})..."
+
+# Backend env passed to every service so the Go side picks the matching transport.
+BACKEND_ENV="FLAME_BACKEND=${FLAME_BACKEND:-tcs}"
 
 # service1: HTTP in from client (oha), flame out to service2 (hop1)
 env PORT=3001 \
     REDIS_URL="localhost:6379" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     APP_NAME_NO_UNDERSCORES="service1" \
+    $BACKEND_ENV \
     FLAME_DOWNSTREAM="hop1" \
     FLAME_DOWNSTREAM_APP="service2" \
     "$BIN/chain_service1_${SUFFIX}" > "$LOGS/service1.log" 2>&1 &
@@ -126,6 +131,7 @@ env PORT=3002 \
     REDIS_URL="localhost:6379" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     APP_NAME_NO_UNDERSCORES="service2" \
+    $BACKEND_ENV \
     FLAME_UPSTREAM="hop1" \
     FLAME_DOWNSTREAM="hop2" \
     FLAME_DOWNSTREAM_APP="service3" \
@@ -137,6 +143,7 @@ env PORT=3003 \
     REDIS_URL="localhost:6379" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     APP_NAME_NO_UNDERSCORES="service3" \
+    $BACKEND_ENV \
     FLAME_UPSTREAM="hop2" \
     FLAME_DOWNSTREAM="hop3" \
     FLAME_DOWNSTREAM_APP="service4" \
@@ -148,6 +155,7 @@ env PORT=3004 \
     REDIS_URL="localhost:6379" \
     SERVICE_URLS_FILE="$SVC_URL_FILE" \
     APP_NAME_NO_UNDERSCORES="service4" \
+    $BACKEND_ENV \
     FLAME_UPSTREAM="hop3" \
     FLAME_DOWNSTREAM="hop4" \
     FLAME_DOWNSTREAM_APP="backend" \
@@ -158,6 +166,7 @@ log "  service4 → :3004  (upstream=hop3, downstream=hop4)"
 env PORT=3005 \
     REDIS_URL="localhost:6379" \
     APP_NAME_NO_UNDERSCORES="backend" \
+    $BACKEND_ENV \
     FLAME_UPSTREAM="hop4" \
     "$BIN/chain_backend_${SUFFIX}" > "$LOGS/backend.log" 2>&1 &
 log "  backend  → :3005  (upstream=hop4)"

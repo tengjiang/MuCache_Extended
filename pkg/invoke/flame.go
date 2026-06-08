@@ -25,6 +25,7 @@ var (
 func getFlameClients() map[string]*flame.RpcClient {
 	flameClientsOnce.Do(func() {
 		flameClients = make(map[string]*flame.RpcClient)
+		backend := parseFlameBackendEnv()
 
 		// Legacy single-downstream (chain benchmark)
 		if single := os.Getenv("FLAME_DOWNSTREAM"); single != "" {
@@ -32,7 +33,7 @@ func getFlameClients() map[string]*flame.RpcClient {
 			if callee == "" {
 				callee = "_default"
 			}
-			c, err := flame.NewRpcClient(single)
+			c, err := flame.NewRpcClientWithBackend(single, backend)
 			if err != nil {
 				panic(fmt.Sprintf("flame RpcClient(%q): %v", single, err))
 			}
@@ -64,7 +65,7 @@ func getFlameClients() map[string]*flame.RpcClient {
 			if _, exists := flameClients[app]; exists {
 				continue // already registered (e.g. from FLAME_DOWNSTREAM)
 			}
-			c, err := flame.NewRpcClient(channel)
+			c, err := flame.NewRpcClientWithBackend(channel, backend)
 			if err != nil {
 				panic(fmt.Sprintf("flame RpcClient(%q→%q): %v", app, channel, err))
 			}
@@ -72,6 +73,21 @@ func getFlameClients() map[string]*flame.RpcClient {
 		}
 	})
 	return flameClients
+}
+
+// parseFlameBackendEnv reads FLAME_BACKEND ∈ {tcs, cq, cq0} (case-insensitive).
+// Defaults to TCS. Exported via a helper so server_helpers.go shares the same parsing.
+func parseFlameBackendEnv() flame.Backend {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLAME_BACKEND"))) {
+	case "cq":
+		return flame.BackendCQ
+	case "cq0":
+		return flame.BackendCQ0
+	case "", "tcs":
+		return flame.BackendTCS
+	default:
+		panic(fmt.Sprintf("FLAME_BACKEND: unknown value %q (want tcs|cq|cq0)", os.Getenv("FLAME_BACKEND")))
+	}
 }
 
 // flameInvoke sends the request over shared memory and returns the raw response bytes.

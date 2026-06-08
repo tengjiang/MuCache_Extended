@@ -43,12 +43,29 @@ func StartServer(handlers HandlerRegistry) {
 		}
 	}
 
+	backend := backendFromEnv()
 	for _, ch := range channels {
-		_, err := NewRpcServer(ch, dispatch)
+		_, err := NewRpcServerWithBackend(ch, backend, dispatch)
 		if err != nil {
 			panic(fmt.Sprintf("flame.StartServer(%q): %v", ch, err))
 		}
-		fmt.Printf("[flame] server listening on channel %q\n", ch)
+		fmt.Printf("[flame] server listening on channel %q (backend=%v)\n", ch, backend)
+	}
+}
+
+// backendFromEnv reads FLAME_BACKEND and maps to a Backend value. Defaults
+// to TCS. Duplicates the helper in pkg/invoke/flame.go to keep this
+// package free of an import cycle.
+func backendFromEnv() Backend {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLAME_BACKEND"))) {
+	case "cq":
+		return BackendCQ
+	case "cq0":
+		return BackendCQ0
+	case "", "tcs":
+		return BackendTCS
+	default:
+		panic(fmt.Sprintf("FLAME_BACKEND: unknown value %q", os.Getenv("FLAME_BACKEND")))
 	}
 }
 

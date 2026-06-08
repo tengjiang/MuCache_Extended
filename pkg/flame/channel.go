@@ -29,9 +29,22 @@ import (
 	"unsafe"
 )
 
+// Backend selects the underlying transport. TCS (default) is the
+// daemon-mediated two-region design; CQ and CQ0 are daemonless
+// single-region designs differing only in whether the queue holds copies
+// (CQ) or shm pointers (CQ0). Must match the flame_daemon's --backend.
+type Backend int
+
+const (
+	BackendTCS Backend = 0 // TrustedCopierServiceBenchmark
+	BackendCQ  Backend = 1 // CounterQueueBenchmark zero_copy=false
+	BackendCQ0 Backend = 2 // CounterQueueBenchmark zero_copy=true
+)
+
 // Config describes a flame channel.
 type Config struct {
 	Name       string
+	Backend    Backend
 	MsgSize    int  // fixed frame size in bytes
 	WindowSize int  // outstanding-message buffer depth per side (power-of-2-ish)
 	Blocking   bool // true = futex doorbells, false = spin-polling
@@ -55,6 +68,9 @@ func (c Config) blocking() C.int {
 	}
 	return 0
 }
+func (c Config) backend() C.flame_backend_t {
+	return C.flame_backend_t(c.Backend)
+}
 
 // ── Client ───────────────────────────────────────────────────────────────────
 
@@ -72,7 +88,7 @@ func NewClient(cfg Config) (*Client, error) {
 	name := C.CString(cfg.Name)
 	defer C.free(unsafe.Pointer(name))
 
-	handle := C.flame_client_connect(name, cfg.msgSize(), cfg.window(), cfg.blocking())
+	handle := C.flame_client_connect(name, cfg.backend(), cfg.msgSize(), cfg.window(), cfg.blocking())
 	if handle == nil {
 		return nil, fmt.Errorf("flame_client_connect(%q)", cfg.Name)
 	}
@@ -169,7 +185,7 @@ func NewServer(cfg Config) (*Server, error) {
 	name := C.CString(cfg.Name)
 	defer C.free(unsafe.Pointer(name))
 
-	handle := C.flame_server_connect(name, cfg.msgSize(), cfg.window(), cfg.blocking())
+	handle := C.flame_server_connect(name, cfg.backend(), cfg.msgSize(), cfg.window(), cfg.blocking())
 	if handle == nil {
 		return nil, fmt.Errorf("flame_server_connect(%q)", cfg.Name)
 	}

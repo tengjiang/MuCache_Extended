@@ -33,16 +33,33 @@ typedef struct FlameClient_ FlameClient;
 typedef struct FlameServer_ FlameServer;
 typedef struct FlameDaemon_ FlameDaemon;
 
+/* Transport backend selector. TCS uses a daemon-mediated two-region design
+ * (the original model); CQ and CQ0 are daemonless single-region designs
+ * differing only by zero_copy. For CQ/CQ0 the daemon process still runs
+ * but its only job is to create the single shm region — it does no copy
+ * work (its run-loop just sleeps until stop is requested). */
+typedef enum {
+    FLAME_BACKEND_TCS = 0, /* TrustedCopierServiceBenchmark, 2 shm regions, daemon copies */
+    FLAME_BACKEND_CQ  = 1, /* CounterQueueBenchmark zero_copy=false, 1 shm region */
+    FLAME_BACKEND_CQ0 = 2, /* CounterQueueBenchmark zero_copy=true,  1 shm region */
+} flame_backend_t;
+
 /* ── Daemon ───────────────────────────────────────────────────────────────── */
 
 /*
- * Create both shm regions (<name>_cd and <name>_ds) and initialize the
- * TCSPoolManager. Window_size is the per-side buffer count (default 256).
- * Blocking: nonzero = use futex doorbells, 0 = pure polling.
+ * Create the shm region(s) for the chosen backend and initialize the
+ * server-side bookkeeping. For TCS this creates <name>_cd and <name>_ds
+ * plus a TCSPoolManager that will copy between them once run() is
+ * called. For CQ/CQ0 this creates a single <name>_cq region; the
+ * daemon's run() is a no-op idle loop.
+ *
+ * Window_size is the per-side buffer count. Blocking: nonzero = use
+ * futex doorbells, 0 = pure polling.
  *
  * Returns NULL on error (e.g. region already exists — unlink first).
  */
 FlameDaemon* flame_daemon_create(const char* name,
+                                 flame_backend_t backend,
                                  size_t      msg_size,
                                  uint32_t    window_size,
                                  int         blocking);
@@ -69,6 +86,7 @@ void flame_daemon_destroy(FlameDaemon* d);
  * msg_size and window_size must match the daemon's configuration.
  */
 FlameClient* flame_client_connect(const char* name,
+                                  flame_backend_t backend,
                                   size_t      msg_size,
                                   uint32_t    window_size,
                                   int         blocking);
@@ -117,6 +135,7 @@ int   flame_client_release    (FlameClient* c, void* slot);
 /* ── Server ───────────────────────────────────────────────────────────────── */
 
 FlameServer* flame_server_connect(const char* name,
+                                  flame_backend_t backend,
                                   size_t      msg_size,
                                   uint32_t    window_size,
                                   int         blocking);
