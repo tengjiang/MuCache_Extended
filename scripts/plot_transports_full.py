@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 CSV   = "results/chain_transports_full/summary.csv"
 OUT   = "results/chain_transports_full/chain_transports_full.png"
-SIZES = [512, 2048, 8192]
+SIZES = [512, 2048, 8192, 32768]
 METRIC = "p99_ms"   # match the reference paper's plot (latency axis)
 YLABEL = "Latency (ms)"
 
@@ -26,7 +26,7 @@ STYLE = {
 df = pd.read_csv(CSV)
 df = df[df["succ"] == "100.00%"]
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True)
+fig, axes = plt.subplots(1, len(SIZES), figsize=(4.8 * len(SIZES), 4.8), sharey=True)
 
 http = df[df.backend == "http"].sort_values("concurrency")
 
@@ -42,7 +42,8 @@ for ax, size in zip(axes, SIZES):
                 markersize=9, markeredgecolor="black", markeredgewidth=0.5,
                 **STYLE[backend])
 
-    ax.set_title(f"chain (RpcMsgSize = {size} B)", fontsize=11)
+    label = f"{size} B" if size < 1024 else f"{size//1024} KB"
+    ax.set_title(f"chain (RpcMsgSize = {label})", fontsize=11)
     ax.set_xlabel("Throughput (requests / s)")
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, 60000)
