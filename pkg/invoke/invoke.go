@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding"
 	"encoding/json"
 	"fmt"
 	dapr "github.com/dapr/go-sdk/client"
@@ -254,7 +255,21 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 	}
 	tTotal := time.Now()
 	t0 := time.Now()
-	buf, err := json.Marshal(input)
+	// On the flame path, prefer per-type binary encoding when the input
+	// implements encoding.BinaryMarshaler — avoids json.Marshal's reflection
+	// and per-call allocation. Falls back to JSON for any type that doesn't
+	// opt in. Non-flame paths (cache, dapr) always use JSON.
+	var buf []byte
+	var err error
+	if common.FLAME {
+		if bm, ok := input.(encoding.BinaryMarshaler); ok {
+			buf, err = bm.MarshalBinary()
+		} else {
+			buf, err = json.Marshal(input)
+		}
+	} else {
+		buf, err = json.Marshal(input)
+	}
 	latency.Record("invoke_marshal_req", time.Since(t0))
 	if err != nil {
 		panic(err)
@@ -265,7 +280,12 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 		respBytes := flameInvoke(app, method, buf)
 		t1 := time.Now()
 		var res T
-		if err := json.Unmarshal(respBytes, &res); err != nil {
+		// Symmetric: prefer binary unmarshal when *T implements it.
+		if bu, ok := any(&res).(encoding.BinaryUnmarshaler); ok {
+			if err := bu.UnmarshalBinary(respBytes); err != nil {
+				panic(err)
+			}
+		} else if err := json.Unmarshal(respBytes, &res); err != nil {
 			panic(err)
 		}
 		latency.Record("invoke_unmarshal_resp", time.Since(t1))

@@ -4,6 +4,7 @@
 package flame
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -52,13 +53,32 @@ func StartServer(handlers HandlerRegistry) {
 }
 
 // WrapHandler creates a handler func from typed Go handler + types.
+//
+// Prefers per-type binary encoding: if *Req implements
+// encoding.BinaryUnmarshaler the body is decoded with UnmarshalBinary;
+// if Resp implements encoding.BinaryMarshaler the response is encoded
+// with MarshalBinary. Either side independently falls back to JSON.
+// The client side (pkg/invoke.Invoke) makes the symmetric choice based
+// on the same interface checks, so as long as both sides compile against
+// the same type definitions the wire format matches.
 func WrapHandler[Req any, Resp any](handler func(Req) Resp) func([]byte) []byte {
 	return func(body []byte) []byte {
 		var req Req
-		if err := json.Unmarshal(body, &req); err != nil {
+		if bu, ok := any(&req).(encoding.BinaryUnmarshaler); ok {
+			if err := bu.UnmarshalBinary(body); err != nil {
+				panic(fmt.Sprintf("flame handler unmarshal: %v", err))
+			}
+		} else if err := json.Unmarshal(body, &req); err != nil {
 			panic(fmt.Sprintf("flame handler unmarshal: %v", err))
 		}
 		resp := handler(req)
+		if bm, ok := any(resp).(encoding.BinaryMarshaler); ok {
+			out, err := bm.MarshalBinary()
+			if err != nil {
+				panic(fmt.Sprintf("flame handler marshal: %v", err))
+			}
+			return out
+		}
 		out, err := json.Marshal(resp)
 		if err != nil {
 			panic(fmt.Sprintf("flame handler marshal: %v", err))
