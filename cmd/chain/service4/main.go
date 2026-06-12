@@ -53,13 +53,23 @@ func writeFlame(req twoserivces.WriteRequest) string {
 	return *write(context.Background(), &req)
 }
 
+func blobRead(ctx context.Context, req *twoserivces.BlobReadRequest) *twoserivces.BlobReadResponse {
+	resp := invoke.Invoke[twoserivces.BlobReadResponse](ctx, Callee, "ro_blob_read", req)
+	return &resp
+}
+
+func blobReadFlame(req twoserivces.BlobReadRequest) twoserivces.BlobReadResponse {
+	return *blobRead(context.Background(), &req)
+}
+
 func main() {
 	fmt.Println(runtime.GOMAXPROCS(MaxProcs))
 
 	if common.FLAME {
 		flame.StartServer(flame.HandlerRegistry{
-			"ro_read": flame.WrapHandler(readFlame),
-			"write":   flame.WrapHandler(writeFlame),
+			"ro_read":      flame.WrapHandler(readFlame),
+			"write":        flame.WrapHandler(writeFlame),
+			"ro_blob_read": flame.WrapHandler(blobReadFlame),
 		})
 	}
 
@@ -69,6 +79,7 @@ func main() {
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_read", wrappers.ROWrapper[twoserivces.ReadRequest, twoserivces.ReadResponse](read))
+	http.HandleFunc("/ro_blob_read", wrappers.ROWrapper[twoserivces.BlobReadRequest, twoserivces.BlobReadResponse](blobRead))
 	http.HandleFunc("/write", wrappers.NonROWrapper[twoserivces.WriteRequest, string](write))
 	http.HandleFunc("/ro_hitormiss", wrappers.ROWrapper[twoserivces.HitOrMissRequest, string](hitormiss))
 	fmt.Printf("service4 listening on :%s\n", port)

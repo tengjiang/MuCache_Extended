@@ -30,6 +30,15 @@ func read(ctx context.Context, req *twoserivces.ReadRequest) *twoserivces.ReadRe
 	return &resp
 }
 
+// blobRead forwards a Size-byte blob request downstream and returns the
+// response. The invoke.Invoke call unmarshals the response (touches all
+// Size bytes), and the ROWrapper marshals it back (touches them again).
+// Used by the payload-size sweep.
+func blobRead(ctx context.Context, req *twoserivces.BlobReadRequest) *twoserivces.BlobReadResponse {
+	resp := invoke.Invoke[twoserivces.BlobReadResponse](ctx, Callee, "ro_blob_read", req)
+	return &resp
+}
+
 func write(ctx context.Context, req *twoserivces.WriteRequest) *string {
 	resp := invoke.Invoke[string](ctx, Callee, "write", req)
 	return &resp
@@ -81,6 +90,7 @@ func main() {
 	}
 	http.HandleFunc("/heartbeat", heartbeat)
 	http.HandleFunc("/ro_read", wrappers.ROWrapper[twoserivces.ReadRequest, twoserivces.ReadResponse](read))
+	http.HandleFunc("/ro_blob_read", wrappers.ROWrapper[twoserivces.BlobReadRequest, twoserivces.BlobReadResponse](blobRead))
 	http.HandleFunc("/write", wrappers.NonROWrapper[twoserivces.WriteRequest, string](write))
 	http.HandleFunc("/ro_hitormiss", wrappers.ROWrapper[twoserivces.HitOrMissRequest, string](hitormiss))
 	http.HandleFunc("/invalidation_experiment", wrappers.NonROWrapper[loadcm.InvalidationExperimentRequest, string](invalidationExperiment))
