@@ -255,14 +255,22 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 	}
 	tTotal := time.Now()
 	t0 := time.Now()
-	// On the flame path, prefer per-type binary encoding when the input
-	// implements encoding.BinaryMarshaler — avoids json.Marshal's reflection
-	// and per-call allocation. Falls back to JSON for any type that doesn't
-	// opt in. Non-flame paths (cache, dapr) always use JSON.
+	// On the flame path the request encoding follows a 3-tier preference:
+	//   1. AppendBinary — input writes directly into the shm slot's body
+	//      region (no intermediate Go buffer, no shm memcpy).
+	//   2. MarshalBinary — fresh []byte, then flame's rpcEncodeRequest
+	//      copies it into the slot. One Go-side alloc.
+	//   3. JSON         — reflection-based, alloc + reflection cost.
+	// Non-flame paths (cache, dapr) always use JSON.
 	var buf []byte
 	var err error
+	useAppend := false
 	if common.FLAME {
-		if bm, ok := input.(encoding.BinaryMarshaler); ok {
+		if _, ok := input.(interface {
+			AppendBinary(dst []byte) ([]byte, error)
+		}); ok {
+			useAppend = true
+		} else if bm, ok := input.(encoding.BinaryMarshaler); ok {
 			buf, err = bm.MarshalBinary()
 		} else {
 			buf, err = json.Marshal(input)
@@ -277,7 +285,21 @@ func Invoke[T interface{}](ctx context.Context, app string, method string, input
 
 	// ── flame path: bypass cache/CM, send via shm ──
 	if common.FLAME {
-		respBytes := flameInvoke(app, method, buf)
+		var respBytes []byte
+		if useAppend {
+			ba := input.(interface {
+				AppendBinary(dst []byte) ([]byte, error)
+			})
+			respBytes = flameInvokeAppend(app, method, func(dst []byte) []byte {
+				out, err := ba.AppendBinary(dst)
+				if err != nil {
+					panic(err)
+				}
+				return out
+			})
+		} else {
+			respBytes = flameInvoke(app, method, buf)
+		}
 		t1 := time.Now()
 		var res T
 		// Symmetric: prefer binary unmarshal when *T implements it.

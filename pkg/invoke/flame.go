@@ -108,3 +108,24 @@ func flameInvoke(app string, method string, body []byte) []byte {
 	}
 	return resp
 }
+
+// flameInvokeAppend uses RpcClient.CallAppend: the fill callback writes
+// the request body directly into the shm slot's body region. No Go-side
+// intermediate buffer between the application marshaler and the slot.
+func flameInvokeAppend(app, method string, fill func(dst []byte) []byte) []byte {
+	clients := getFlameClients()
+	c := clients[app]
+	if c == nil {
+		c = clients["_default"]
+	}
+	if c == nil {
+		panic(fmt.Sprintf("flameInvokeAppend: no flame channel for app %q", app))
+	}
+	t0 := time.Now()
+	resp, err := c.CallAppend(method, fill)
+	latency.Record("flame_rpc_call", time.Since(t0))
+	if err != nil {
+		panic(fmt.Sprintf("flameInvokeAppend(%s/%s): %v", app, method, err))
+	}
+	return resp
+}

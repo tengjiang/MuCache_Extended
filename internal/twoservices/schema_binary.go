@@ -88,18 +88,41 @@ func (r *BlobReadRequest) UnmarshalBinary(data []byte) error {
 
 // ── BlobReadResponse ───────────────────────────────────────────────────────
 
-// 4-byte little-endian uint32 length prefix + Data bytes. The unmarshal
-// path materialises Data as a fresh []byte (a memcpy of len(Data) bytes)
-// — this is intentional: the sweep needs each hop to actually touch
-// every byte, and the make+copy here is exactly that touch.
-func (r BlobReadResponse) MarshalBinary() ([]byte, error) {
+// AppendBinary writes the 4-byte length prefix + Data bytes into dst,
+// returning the extended slice. The caller (flame WrapHandler / Invoke
+// fast path) passes a slice pointing at the body region of a shm slot
+// with cap = RpcMsgSize - rpcBodyOff; AppendBinary writes in place, no
+// intermediate Go buffer.
+//
+// This mirrors encoding.BinaryAppender (Go 1.24+); we define the
+// interface in pkg/flame for now.
+//
+// Errors out if cap(dst) is insufficient — the in-place fast path
+// requires the caller to pre-size the destination.
+func (r BlobReadResponse) AppendBinary(dst []byte) ([]byte, error) {
 	n := len(r.Data)
-	buf := make([]byte, 4+n)
-	binary.LittleEndian.PutUint32(buf[0:4], uint32(n))
-	copy(buf[4:], r.Data)
-	return buf, nil
+	needed := 4 + n
+	start := len(dst)
+	if cap(dst)-start < needed {
+		return nil, errors.New("BlobReadResponse.AppendBinary: insufficient dst capacity")
+	}
+	dst = dst[:start+needed]
+	binary.LittleEndian.PutUint32(dst[start:start+4], uint32(n))
+	copy(dst[start+4:], r.Data)
+	return dst, nil
 }
 
+// MarshalBinary derives from AppendBinary — allocates a sized buffer
+// then fills it. Used by callers that don't have a pre-allocated dst.
+func (r BlobReadResponse) MarshalBinary() ([]byte, error) {
+	return r.AppendBinary(make([]byte, 0, 4+len(r.Data)))
+}
+
+// UnmarshalBinary aliases Data into the input slice — no allocation,
+// no copy. Data's backing array is shared with `data`; the caller is
+// responsible for keeping `data` alive as long as Data is in use.
+// In the flame fast path that's the dispatch goroutine's recv body
+// buffer, which Go GC keeps alive via the Data reference.
 func (r *BlobReadResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 4 {
 		return errors.New("BlobReadResponse: short header")
@@ -108,7 +131,6 @@ func (r *BlobReadResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 4+n {
 		return errors.New("BlobReadResponse: truncated data")
 	}
-	r.Data = make([]byte, n)
-	copy(r.Data, data[4:4+n])
+	r.Data = data[4 : 4+n] // alias — no allocation
 	return nil
 }

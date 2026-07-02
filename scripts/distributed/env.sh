@@ -55,3 +55,18 @@ rsync_to_n1() {
 }
 
 log() { echo "[dist $(date +%H:%M:%S)] $*"; }
+
+# Snapshot Redis stats on N2. Prints one line:
+#   total_commands_processed,instantaneous_ops_per_sec,used_cpu_user,used_cpu_sys
+# Used by sweep scripts to bracket each oha run and prove Redis isn't the
+# bottleneck. Sampled via redis-cli on N2 over ssh — adds ~50ms per call.
+redis_snapshot() {
+    ssh_n2 "redis-cli -h 127.0.0.1 -p $REDIS_PORT INFO stats cpu 2>/dev/null" \
+        | tr -d '\r' \
+        | awk -F: '
+            /^total_commands_processed:/   {tot=$2}
+            /^instantaneous_ops_per_sec:/  {inst=$2}
+            /^used_cpu_user:/              {usr=$2}
+            /^used_cpu_sys:/               {sys=$2}
+            END { printf("%s,%s,%s,%s\n", tot, inst, usr, sys) }'
+}

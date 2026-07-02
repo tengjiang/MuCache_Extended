@@ -6,12 +6,33 @@ package flame
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DKW2/MuCache_Extended/pkg/latency"
 )
+
+// serverRecvGoroutines returns the number of concurrent RecvInPlace loops
+// the server should run. Default 1 (single-threaded recv). Setting >1 spawns
+// N parallel recv loops sharing the same Server. Whether that's safe depends
+// on the C++ backend: TCS and CQ0 use a mutex inside the C++ layer, so
+// concurrent peek_recv → release pairs are serialized correctly. CQ uses a
+// per-endpoint send-scratch that we already serialize via muSend; recv side
+// has no scratch so concurrent peek_recv is fine.
+func serverRecvGoroutines() int {
+	v := os.Getenv("FLAME_SERVER_RECV_GOROUTINES")
+	if v == "" {
+		return 1
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return 1
+	}
+	return n
+}
 
 // RpcMsgSize is the fixed frame size for request/response messages.
 // Must be large enough for the biggest JSON payload in any benchmark.
@@ -204,10 +225,58 @@ func (c *RpcClient) Call(method string, body []byte) ([]byte, error) {
 
 func (c *RpcClient) Close() { c.cl.Close() }
 
+// CallAppend is the zero-intermediate-buffer variant of Call.
+// The fill callback writes the request body directly into dst (which is
+// the body region of the shm slot, len=0 cap=rpcBodyMax). Returns the
+// response body bytes (the dispatch goroutine has copied them out of
+// shm into a fresh []byte).
+func (c *RpcClient) CallAppend(method string, fill func(dst []byte) []byte) ([]byte, error) {
+	id := c.nextID.Add(1)
+	ch := make(chan []byte, 1)
+	c.pending.Store(id, ch)
+	defer c.pending.Delete(id)
+
+	t0 := time.Now()
+	c.muSend.Lock()
+	latency.Record("rpc_send_lock_wait", time.Since(t0))
+	t1 := time.Now()
+	err := c.cl.SendInPlace(func(slot []byte) int {
+		bodyDst := slot[rpcBodyOff:rpcBodyOff] // len=0, cap=msg_size-rpcBodyOff
+		out := fill(bodyDst)
+		n := len(out)
+		// Write frame header in place after we know n.
+		binary.LittleEndian.PutUint32(slot[0:4], id)
+		binary.LittleEndian.PutUint16(slot[4:6], uint16(n))
+		slot[6] = rpcTypeRequest
+		slot[7] = 0
+		ml := len(method)
+		if ml > rpcMethodLen-1 {
+			ml = rpcMethodLen - 1
+		}
+		copy(slot[rpcMethodOff:], method[:ml])
+		slot[rpcMethodOff+ml] = 0
+		return rpcBodyOff + n
+	})
+	c.muSend.Unlock()
+	latency.Record("rpc_send", time.Since(t1))
+	if err != nil {
+		return nil, err
+	}
+
+	t2 := time.Now()
+	resp := <-ch
+	latency.Record("rpc_wait_response", time.Since(t2))
+	return resp, nil
+}
+
 // ── RpcServer ────────────────────────────────────────────────────────────────
 
-// Handler takes the method name + request body, returns the response body.
-type Handler func(method string, reqBody []byte) []byte
+// Handler appends the response body bytes into dst (len=0, cap=rpcBodyMax)
+// and returns the extended slice. body holds the request bytes. The
+// caller does NOT pre-encode a body []byte and copy it into shm — the
+// handler writes directly into the shm slot via dst, eliminating the
+// intermediate Go buffer that the old Handler signature required.
+type Handler func(method string, reqBody []byte, dst []byte) []byte
 
 // RpcServer reads requests from the channel, dispatches to handler, sends
 // responses back. Supports concurrent request handling via per-request
@@ -232,8 +301,13 @@ func NewRpcServerWithBackend(name string, backend Backend, handler Handler) (*Rp
 		return nil, fmt.Errorf("RpcServer: %w", err)
 	}
 	s := &RpcServer{sv: sv}
+	// CQ (with copies) returns the SAME endpoint-owned scratch pointer
+	// from every alloc_slot — concurrent SendInPlace callers would race.
+	// TCS and CQ0 hand out distinct slots per call (TCS pool, CQ0 ring
+	// internal_buffers) so they're concurrency-safe via the C++ mutex.
+	needsSendLock := backend == BackendCQ
 
-	go func() {
+	recvLoop := func() {
 		for {
 			slot, release, err := sv.RecvInPlace()
 			if err != nil {
@@ -252,21 +326,51 @@ func NewRpcServerWithBackend(name string, backend Backend, handler Handler) (*Rp
 
 			go func() {
 				t0 := time.Now()
-				respBody := handler(method, body)
-				latency.Record("rpc_server_handler", time.Since(t0))
-
-				// Encode the response straight into a shm slot — no Go-side
-				// pooled buffer, no C-side memcpy from Go to shm.
 				t1 := time.Now()
-				s.muSend.Lock()
-				s.sv.SendInPlace(func(slot []byte) int {
-					return rpcEncodeResponse(slot, id, respBody)
-				})
-				s.muSend.Unlock()
+				if needsSendLock {
+					// CQ path: handler runs OUTSIDE the lock (concurrent),
+					// result gets copied into the shm slot under the lock.
+					// One body-sized memcpy + an alloc per RPC, but
+					// handlers parallelize properly.
+					respBuf := make([]byte, 0, RpcMsgSize-rpcBodyOff)
+					out := handler(method, body, respBuf)
+					n := len(out)
+					s.muSend.Lock()
+					s.sv.SendInPlace(func(slot []byte) int {
+						binary.LittleEndian.PutUint32(slot[0:4], id)
+						binary.LittleEndian.PutUint16(slot[4:6], uint16(n))
+						slot[6] = rpcTypeResponse
+						slot[7] = 0
+						copy(slot[rpcBodyOff:], out)
+						return rpcBodyOff + n
+					})
+					s.muSend.Unlock()
+				} else {
+					// TCS / CQ0: alloc returns distinct slots per call,
+					// so handler can run inside SendInPlace's callback
+					// (writes directly into shm — zero intermediate
+					// buffer).
+					s.sv.SendInPlace(func(slot []byte) int {
+						bodyDst := slot[rpcBodyOff:rpcBodyOff] // len=0, cap=msg_size-rpcBodyOff
+						out := handler(method, body, bodyDst)
+						n := len(out)
+						binary.LittleEndian.PutUint32(slot[0:4], id)
+						binary.LittleEndian.PutUint16(slot[4:6], uint16(n))
+						slot[6] = rpcTypeResponse
+						slot[7] = 0
+						return rpcBodyOff + n
+					})
+				}
 				latency.Record("rpc_server_send", time.Since(t1))
+				latency.Record("rpc_server_handler", time.Since(t0))
 			}()
 		}
-	}()
+	}
+
+	n := serverRecvGoroutines()
+	for i := 0; i < n; i++ {
+		go recvLoop()
+	}
 
 	return s, nil
 }

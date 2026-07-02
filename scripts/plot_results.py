@@ -20,6 +20,8 @@ Outputs (in --outdir):
 """
 
 import argparse
+import datetime as _dt
+import glob
 import os
 import sys
 
@@ -164,24 +166,36 @@ def make_figure(outdir):
 
 
 def plot_tput_latency(outdir, dfs):
-    """Latency (p50 + p99) vs throughput — the classic systems curve."""
+    """Latency (p50 + p99) vs throughput — the classic systems curve.
+
+    Both axes are anchored at (0, 0): each curve gets a synthetic (0, 0)
+    anchor and axes are forced to start at the origin so the plot
+    accurately conveys "no load → no latency, no throughput."
+    """
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=False)
-    fig.suptitle("Latency vs Throughput: flame vs http  (distributed, 150 000 req × 3 runs averaged)",
+    fig.suptitle("Latency vs Throughput: flame vs http  (distributed)",
                  fontsize=11)
 
     for ax, (key, title, _), df in zip(axes, BENCHMARKS, dfs):
         if df.empty:
             continue
+        x_max = 0.0
+        y_max = 0.0
         for mode in ("nocm", "flame"):
             sub = df[df["mode"] == mode].sort_values("rps")
+            if sub.empty:
+                continue
             style = STYLE[mode]
-            # p50 — solid line
-            ax.plot(sub["rps"], sub["p50_secs"] * LAT_SCALE,
+            xs = [0.0] + list(sub["rps"])
+            p50 = [0.0] + list(sub["p50_secs"] * LAT_SCALE)
+            p99 = [0.0] + list(sub["p99_secs"] * LAT_SCALE)
+            x_max = max(x_max, max(xs))
+            y_max = max(y_max, max(p99))
+            ax.plot(xs, p50,
                     label=f"{'http' if mode=='nocm' else 'flame'} p50",
                     color=style["color"], marker=style["marker"],
                     linestyle="-", linewidth=2, markersize=6)
-            # p99 — dotted, same colour, slightly faded
-            ax.plot(sub["rps"], sub["p99_secs"] * LAT_SCALE,
+            ax.plot(xs, p99,
                     label=f"{'http' if mode=='nocm' else 'flame'} p99",
                     color=style["color"], marker=style["marker"],
                     linestyle=":", linewidth=1.5, markersize=5, alpha=0.55)
@@ -191,7 +205,9 @@ def plot_tput_latency(outdir, dfs):
         ax.set_ylabel("Latency (ms)", fontsize=9)
         ax.grid(True, linestyle=":", alpha=0.6)
         ax.tick_params(labelsize=8)
-        # format x-axis with K suffix
+        # Force (0,0) origin with a small headroom margin (5%).
+        ax.set_xlim(0, x_max * 1.05 if x_max > 0 else 1)
+        ax.set_ylim(0, y_max * 1.10 if y_max > 0 else 1)
         ax.xaxis.set_major_formatter(
             ticker.FuncFormatter(lambda x, _: f"{x/1000:.0f}K" if x >= 1000 else f"{x:.0f}")
         )
@@ -209,20 +225,148 @@ def plot_tput_latency(outdir, dfs):
     plt.close(fig)
 
 
+MIX_BENCHMARKS = [
+    ("chain",    "Chain — 80% ro_read / 20% write"),
+    ("boutique", "Boutique — 40 home / 25 browse / 15 view_cart / 10 checkout / 10 add_item"),
+    ("hotel",    "Hotel — 80% ro_search_hotels / 20% reservation"),
+]
+
+
+def _load_mix(path):
+    """Load a vegeta-mix summary.csv. actual_rps + p50/p95/p99_secs."""
+    df = pd.read_csv(path)
+    # Strip "%" off success_rate if it's there.
+    if "success_rate" in df.columns and df["success_rate"].dtype == object:
+        df["success_rate"] = (
+            df["success_rate"].astype(str).str.rstrip("%").astype(float)
+        )
+    return df
+
+
+def _find_latest_mix_dir(repo_root, bench, stamp=None):
+    """If stamp is given, look for results/<bench>_mix_<stamp>; otherwise pick
+    the most recent results/<bench>_mix_* by mtime."""
+    base = os.path.join(repo_root, "results")
+    if stamp:
+        candidate = os.path.join(base, f"{bench}_mix_{stamp}")
+        return candidate if os.path.isdir(candidate) else None
+    matches = sorted(
+        glob.glob(os.path.join(base, f"{bench}_mix_*")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    return matches[0] if matches else None
+
+
+def plot_tput_latency_mix(outdir, stamp=None):
+    """Plot vegeta-mix tput-latency curves and save with a timestamped name.
+
+    Reads results/<bench>_mix_<latest>/summary.csv for each benchmark. Both
+    axes anchored at (0, 0); x is the measured throughput (actual_rps), y is
+    latency in ms.
+    """
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    used_dirs = {}
+    dfs = []
+    for bench, _ in MIX_BENCHMARKS:
+        d = _find_latest_mix_dir(repo_root, bench, stamp=stamp)
+        if d and os.path.exists(os.path.join(d, "summary.csv")):
+            dfs.append(_load_mix(os.path.join(d, "summary.csv")))
+            used_dirs[bench] = os.path.basename(d)
+        else:
+            dfs.append(pd.DataFrame())
+            used_dirs[bench] = None
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=False)
+    out_stamp = stamp or _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    fig.suptitle(
+        f"Mixed-workload latency vs throughput (vegeta open-loop) — run {out_stamp}",
+        fontsize=11,
+    )
+
+    # Drop deadlock/timeout points so the plot's y-axis isn't pinned to the
+    # 5s vegeta timeout. We keep anything with success ≥ 95%; that's the
+    # honest pre-saturation curve plus the latency-spike "knee" where the
+    # system is still serving every request, just slowly.
+    SUCCESS_FLOOR = 95.0
+    for ax, (bench, title), df in zip(axes, MIX_BENCHMARKS, dfs):
+        if df.empty:
+            ax.set_title(f"{title}\n(no data)", fontsize=9)
+            continue
+        x_max = 0.0
+        y_max = 0.0
+        for mode in ("nocm", "flame"):
+            sub = (
+                df[df["mode"] == mode]
+                .pipe(lambda d: d[d["success_rate"] >= SUCCESS_FLOOR])
+                .sort_values("actual_rps")
+            )
+            if sub.empty:
+                continue
+            style = STYLE[mode]
+            xs = [0.0] + list(sub["actual_rps"])
+            p50 = [0.0] + list(sub["p50_secs"] * LAT_SCALE)
+            p99 = [0.0] + list(sub["p99_secs"] * LAT_SCALE)
+            x_max = max(x_max, max(xs))
+            y_max = max(y_max, max(p99))
+            ax.plot(xs, p50,
+                    label=f"{'http' if mode=='nocm' else 'flame'} p50",
+                    color=style["color"], marker=style["marker"],
+                    linestyle="-", linewidth=2, markersize=5)
+            ax.plot(xs, p99,
+                    label=f"{'http' if mode=='nocm' else 'flame'} p99",
+                    color=style["color"], marker=style["marker"],
+                    linestyle=":", linewidth=1.5, markersize=4, alpha=0.55)
+
+        ax.set_title(title, fontsize=9, fontweight="bold")
+        ax.set_xlabel("Throughput (req/s, measured)", fontsize=9)
+        ax.set_ylabel("Latency (ms)", fontsize=9)
+        ax.grid(True, linestyle=":", alpha=0.6)
+        ax.tick_params(labelsize=8)
+        ax.set_xlim(0, x_max * 1.05 if x_max > 0 else 1)
+        ax.set_ylim(0, y_max * 1.10 if y_max > 0 else 1)
+        ax.xaxis.set_major_formatter(
+            ticker.FuncFormatter(
+                lambda x, _: f"{x/1000:.0f}K" if x >= 1000 else f"{x:.0f}"
+            )
+        )
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[0].legend(handles, labels, fontsize=8, ncol=2,
+                   loc="upper left", framealpha=0.9,
+                   title="— p50  ··· p99", title_fontsize=8)
+
+    fig.tight_layout()
+    os.makedirs(outdir, exist_ok=True)
+    out = os.path.join(outdir, f"tput_latency_mix_{out_stamp}.png")
+    fig.savefig(out, dpi=200)
+    print(f"saved {out}")
+    for b, d in used_dirs.items():
+        print(f"  {b}: {d}")
+    plt.close(fig)
+    return out
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--outdir", default="results/figs",
                         help="Output directory for PNG files (default: results/figs)")
+    parser.add_argument("--mix", action="store_true",
+                        help="Plot from latest results/<bench>_mix_<stamp>/ dirs (vegeta open-loop runs).")
+    parser.add_argument("--stamp", default=None,
+                        help="If --mix and given, use results/<bench>_mix_<stamp>/ exactly.")
     args = parser.parse_args()
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     outdir = os.path.join(repo_root, args.outdir)
-    make_figure(outdir)
 
-    # reload dfs for the tput-latency plot
-    dfs = []
-    for key, title, relpath in BENCHMARKS:
-        csv = os.path.join(repo_root, relpath)
-        dfs.append(load(csv) if os.path.exists(csv) else pd.DataFrame())
-    plot_tput_latency(outdir, dfs)
+    if args.mix:
+        plot_tput_latency_mix(outdir, stamp=args.stamp)
+    else:
+        make_figure(outdir)
+        dfs = []
+        for key, title, relpath in BENCHMARKS:
+            csv = os.path.join(repo_root, relpath)
+            dfs.append(load(csv) if os.path.exists(csv) else pd.DataFrame())
+        plot_tput_latency(outdir, dfs)
